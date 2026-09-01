@@ -15,10 +15,14 @@ const reservationSellerEmail = `reservation-seller-${Date.now()}@massey.ac.nz`;
 const reservationBuyerAEmail = `reservation-buyer-a-${Date.now()}@massey.ac.nz`;
 const reservationBuyerBEmail = `reservation-buyer-b-${Date.now()}@massey.ac.nz`;
 const reservationThirdEmail = `reservation-third-${Date.now()}@massey.ac.nz`;
+const reportSellerEmail = `report-seller-${Date.now()}@massey.ac.nz`;
+const reportUserEmail = `report-user-${Date.now()}@massey.ac.nz`;
+const reportAdminEmail = `report-admin-${Date.now()}@massey.ac.nz`;
 const testPassword = "secure-password-123";
-const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail, messageSellerEmail, messageBuyerEmail, messageThirdEmail, reservationSellerEmail, reservationBuyerAEmail, reservationBuyerBEmail, reservationThirdEmail];
+const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail, messageSellerEmail, messageBuyerEmail, messageThirdEmail, reservationSellerEmail, reservationBuyerAEmail, reservationBuyerBEmail, reservationThirdEmail, reportSellerEmail, reportUserEmail, reportAdminEmail];
 
 afterAll(async () => {
+  await prisma.report.deleteMany({ where: { OR: [{ reporter: { email: { in: testEmails } } }, { listing: { seller: { email: { in: testEmails } } } }] } });
   await prisma.reservation.deleteMany({ where: { OR: [{ buyer: { email: { in: testEmails } } }, { listing: { seller: { email: { in: testEmails } } } }] } });
   await prisma.message.deleteMany({ where: { sender: { email: { in: testEmails } } } });
   await prisma.conversation.deleteMany({ where: { OR: [{ buyer: { email: { in: testEmails } } }, { seller: { email: { in: testEmails } } }] } });
@@ -351,5 +355,50 @@ describe("reservations", () => {
     expect((await prisma.listing.findUniqueOrThrow({ where: { id: declineListing } })).status).toBe("AVAILABLE");
     expect((await buyerA.agent.get("/api/reservations")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: reservationA })]));
     expect((await third.agent.get("/api/reservations")).body).toEqual([]);
+  });
+});
+
+describe("reporting and admin moderation", () => {
+  async function register(name: string, email: string, role?: string) {
+    const agent = request.agent(app);
+    const response = await agent.post("/api/auth/register").send({ name, email, password: testPassword, role });
+    expect(response.status).toBe(201);
+    return { agent, id: response.body.user.id as number, role: response.body.user.role as string };
+  }
+  it("enforces roles, report identity, and soft moderation", async () => {
+    const seller = await register("Report Seller", reportSellerEmail);
+    const reporter = await register("Report User", reportUserEmail, "ADMIN");
+    expect(reporter.role).toBe("USER");
+    const admin = await register("Report Admin", reportAdminEmail);
+    await prisma.user.update({ where: { id: admin.id }, data: { role: "ADMIN" } });
+    const listing = await seller.agent.post("/api/listings").send({ title: "Unique Moderated Listing", description: "Report test.", priceCents: 1000, category: "OTHER", condition: "GOOD", location: "Albany" });
+    const listingId = listing.body.id as number;
+    expect((await request(app).post(`/api/listings/${listingId}/reports`).send({ reason: "spam" })).status).toBe(401);
+    expect((await reporter.agent.post(`/api/listings/${listingId}/reports`).send({ reason: "   " })).status).toBe(400);
+    expect((await reporter.agent.post("/api/listings/999999999/reports").send({ reason: "spam" })).status).toBe(404);
+    const report = await reporter.agent.post(`/api/listings/${listingId}/reports`).send({ reason: "Incorrect listing", reporterId: seller.id });
+    expect(report.status).toBe(201); expect(report.body).toMatchObject({ status: "PENDING", reporterId: reporter.id, listingId });
+    expect((await prisma.report.findUniqueOrThrow({ where: { id: report.body.id } })).reporterId).toBe(reporter.id);
+    expect((await reporter.agent.get("/api/admin/reports")).status).toBe(403);
+    const list = await admin.agent.get("/api/admin/reports"); expect(list.status).toBe(200); expect(list.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: report.body.id, listing: expect.objectContaining({ id: listingId }) })]));
+    expect((await reporter.agent.post(`/api/admin/reports/${report.body.id}/dismiss`)).status).toBe(403);
+    expect((await admin.agent.post(`/api/admin/reports/${report.body.id}/dismiss`)).status).toBe(200);
+    expect((await prisma.report.findUniqueOrThrow({ where: { id: report.body.id } })).status).toBe("DISMISSED");
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).moderationStatus).toBe("ACTIVE");
+    expect((await admin.agent.post(`/api/admin/reports/${report.body.id}/remove-listing`)).status).toBe(409);
+    const removeReport = await reporter.agent.post(`/api/listings/${listingId}/reports`).send({ reason: "Second reason" });
+    expect((await reporter.agent.post(`/api/admin/reports/${removeReport.body.id}/remove-listing`)).status).toBe(403);
+    await reporter.agent.post(`/api/listings/${listingId}/favourite`);
+    expect((await admin.agent.post(`/api/admin/reports/${removeReport.body.id}/remove-listing`)).status).toBe(200);
+    expect((await prisma.report.findUniqueOrThrow({ where: { id: removeReport.body.id } })).status).toBe("RESOLVED");
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).moderationStatus).toBe("REMOVED");
+    expect((await request(app).get("/api/listings")).body.some((publicListing: { id: number }) => publicListing.id === listingId)).toBe(false);
+    expect((await request(app).get(`/api/listings/${listingId}`)).status).toBe(404);
+    expect((await request(app).get("/api/listings?search=Unique%20Moderated%20Listing")).body).toEqual([]);
+    expect((await reporter.agent.get("/api/favourites")).body).toEqual([]);
+    expect(await prisma.favourite.count({ where: { userId: reporter.id, listingId } })).toBe(1);
+    expect((await reporter.agent.post(`/api/listings/${listingId}/favourite`)).status).toBe(404);
+    expect((await reporter.agent.post(`/api/listings/${listingId}/conversations`)).status).toBe(404);
+    expect((await reporter.agent.post(`/api/listings/${listingId}/reservations`)).status).toBe(404);
   });
 });

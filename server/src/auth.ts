@@ -1,6 +1,7 @@
 import "dotenv/config";
 import type { CookieOptions, NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import prisma from "./prisma.js";
 
 const cookieName = "campusloop_auth";
 
@@ -54,4 +55,11 @@ export function requireAuth(request: Request, response: Response, next: NextFunc
   } catch {
     response.status(401).json({ error: "Authentication required." });
   }
+}
+
+export async function requireAdmin(request: Request, response: Response, next: NextFunction) {
+  if (!request.auth) return response.status(401).json({ error: "Authentication required." });
+  const user = await prisma.user.findUnique({ where: { id: request.auth.userId }, select: { role: true } });
+  if (!user || user.role !== "ADMIN") return response.status(403).json({ error: "Administrator access required." });
+  next();
 }

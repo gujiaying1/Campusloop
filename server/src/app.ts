@@ -3,7 +3,7 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { clearAuthCookie, requireAuth, setAuthCookie } from "./auth.js";
+import { clearAuthCookie, requireAdmin, requireAuth, setAuthCookie } from "./auth.js";
 import prisma from "./prisma.js";
 
 const app = express();
@@ -52,6 +52,7 @@ const listingSelect = {
 
 const safeUserSelect = { id: true, name: true, email: true } satisfies Prisma.UserSelect;
 const messageSchema = z.object({ content: z.string().trim().min(1, "Message cannot be blank.").max(1000, "Message is too long.") });
+const reportSchema = z.object({ reason: z.string().trim().min(1, "Report reason is required.").max(500, "Report reason is too long.") });
 const conversationSelect = {
   id: true, buyerId: true, sellerId: true, createdAt: true, updatedAt: true,
   listing: { select: listingSelect }, buyer: { select: safeUserSelect }, seller: { select: safeUserSelect }
@@ -68,8 +69,8 @@ function listingId(value: string | string[] | undefined): number | null {
   return parsed.success ? parsed.data : null;
 }
 
-function publicUser(user: { id: number; name: string; email: string; createdAt: Date }) {
-  return { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
+function publicUser(user: { id: number; name: string; email: string; createdAt: Date; role: "USER" | "ADMIN" }) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role, createdAt: user.createdAt };
 }
 
 app.use(express.json());
@@ -92,6 +93,7 @@ app.get("/api/listings", async (request, response, next) => {
   }
 
   const where: Prisma.ListingWhereInput = {
+    moderationStatus: "ACTIVE",
     ...(search
       ? {
           OR: [
@@ -127,7 +129,7 @@ app.get("/api/listings/:id", async (request, response, next) => {
   }
 
   try {
-    const listing = await prisma.listing.findUnique({ where: { id }, select: listingSelect });
+    const listing = await prisma.listing.findFirst({ where: { id, moderationStatus: "ACTIVE" }, select: listingSelect });
     if (!listing) {
       response.status(404).json({ error: "Listing not found." });
       return;
@@ -217,7 +219,7 @@ app.post("/api/listings/:id/favourite", requireAuth, async (request, response, n
   }
 
   try {
-    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true } });
+    const listing = await prisma.listing.findFirst({ where: { id, moderationStatus: "ACTIVE" }, select: { id: true } });
     if (!listing) {
       response.status(404).json({ error: "Listing not found." });
       return;
@@ -251,7 +253,7 @@ app.delete("/api/listings/:id/favourite", requireAuth, async (request, response,
 app.get("/api/favourites", requireAuth, async (request, response, next) => {
   try {
     const favourites = await prisma.favourite.findMany({
-      where: { userId: request.auth!.userId },
+      where: { userId: request.auth!.userId, listing: { moderationStatus: "ACTIVE" } },
       orderBy: { createdAt: "desc" },
       select: { listing: { select: listingSelect } }
     });
@@ -265,7 +267,7 @@ app.post("/api/listings/:id/conversations", requireAuth, async (request, respons
   const id = listingId(request.params.id);
   if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
   try {
-    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, sellerId: true } });
+    const listing = await prisma.listing.findFirst({ where: { id, moderationStatus: "ACTIVE" }, select: { id: true, sellerId: true } });
     if (!listing) return response.status(404).json({ error: "Listing not found." });
     if (listing.sellerId === request.auth!.userId) return response.status(400).json({ error: "You cannot message yourself about your own listing." });
     const conversation = await prisma.conversation.upsert({
@@ -318,7 +320,7 @@ app.post("/api/listings/:id/reservations", requireAuth, async (request, response
   const id = listingId(request.params.id);
   if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
   try {
-    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, sellerId: true, status: true } });
+    const listing = await prisma.listing.findFirst({ where: { id, moderationStatus: "ACTIVE" }, select: { id: true, sellerId: true, status: true } });
     if (!listing) return response.status(404).json({ error: "Listing not found." });
     if (listing.sellerId === request.auth!.userId) return response.status(400).json({ error: "You cannot reserve your own listing." });
     if (listing.status !== "AVAILABLE") return response.status(409).json({ error: "This listing is not available for reservation." });
@@ -383,6 +385,31 @@ app.post("/api/listings/:id/sold", requireAuth, async (request, response, next) 
     if (listing.status !== "RESERVED") return response.status(409).json({ error: "Only reserved listings can be marked sold." });
     response.json(await prisma.listing.update({ where: { id }, data: { status: "SOLD" }, select: listingSelect }));
   } catch (error) { next(error); }
+});
+
+app.post("/api/listings/:id/reports", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
+  const parsed = reportSchema.safeParse(request.body); if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid report." });
+  try {
+    const listing = await prisma.listing.findFirst({ where: { id, moderationStatus: "ACTIVE" }, select: { id: true } });
+    if (!listing) return response.status(404).json({ error: "Listing not found." });
+    const existing = await prisma.report.findFirst({ where: { listingId: id, reporterId: request.auth!.userId, status: "PENDING" } });
+    if (existing) return response.json(existing);
+    response.status(201).json(await prisma.report.create({ data: { listingId: id, reporterId: request.auth!.userId, reason: parsed.data.reason } }));
+  } catch (error) { next(error); }
+});
+
+const reportSelect = { id: true, reason: true, status: true, createdAt: true, updatedAt: true, reporter: { select: safeUserSelect }, listing: { select: listingSelect } } satisfies Prisma.ReportSelect;
+app.get("/api/admin/reports", requireAuth, requireAdmin, async (_request, response, next) => {
+  try { response.json(await prisma.report.findMany({ orderBy: { createdAt: "desc" }, select: reportSelect })); } catch (error) { next(error); }
+});
+app.post("/api/admin/reports/:id/dismiss", requireAuth, requireAdmin, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Report id must be a positive integer." });
+  try { const report = await prisma.report.findUnique({ where: { id } }); if (!report) return response.status(404).json({ error: "Report not found." }); if (report.status !== "PENDING") return response.status(409).json({ error: "Report is not pending." }); response.json(await prisma.report.update({ where: { id }, data: { status: "DISMISSED" }, select: reportSelect })); } catch (error) { next(error); }
+});
+app.post("/api/admin/reports/:id/remove-listing", requireAuth, requireAdmin, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Report id must be a positive integer." });
+  try { const report = await prisma.report.findUnique({ where: { id } }); if (!report) return response.status(404).json({ error: "Report not found." }); if (report.status !== "PENDING") return response.status(409).json({ error: "Report is not pending." }); await prisma.$transaction([prisma.report.update({ where: { id }, data: { status: "RESOLVED" } }), prisma.listing.update({ where: { id: report.listingId }, data: { moderationStatus: "REMOVED" } })]); response.json(await prisma.report.findUniqueOrThrow({ where: { id }, select: reportSelect })); } catch (error) { next(error); }
 });
 
 app.post("/api/auth/register", async (request, response, next) => {

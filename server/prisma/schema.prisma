@@ -28,6 +28,22 @@ enum ListingStatus {
   SOLD
 }
 
+enum ListingModerationStatus {
+  ACTIVE
+  REMOVED
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
 enum ReservationStatus {
   PENDING
   ACCEPTED
@@ -40,6 +56,7 @@ model User {
   name      String
   email     String    @unique
   passwordHash String?
+  role      UserRole @default(USER)
   createdAt DateTime  @default(now())
   listings  Listing[]
   favourites Favourite[]
@@ -47,6 +64,7 @@ model User {
   sellerConversations Conversation[] @relation("ConversationSeller")
   sentMessages Message[]
   reservations Reservation[]
+  reports Report[]
 }
 
 model Listing {
@@ -58,6 +76,7 @@ model Listing {
   condition   ListingCondition
   location    String
   status      ListingStatus    @default(AVAILABLE)
+  moderationStatus ListingModerationStatus @default(ACTIVE)
   seller      User             @relation(fields: [sellerId], references: [id])
   sellerId    Int
   createdAt   DateTime         @default(now())
@@ -65,6 +84,7 @@ model Listing {
   favourites  Favourite[]
   conversations Conversation[]
   reservations Reservation[]
+  reports      Report[]
 
   @@unique([sellerId, title])
 }
@@ -115,4 +135,18 @@ model Reservation {
   buyer     User              @relation(fields: [buyerId], references: [id], onDelete: Cascade)
 
   @@unique([listingId, buyerId, status])
+}
+
+model Report {
+  id         Int          @id @default(autoincrement())
+  listingId  Int
+  reporterId Int
+  reason     String
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  listing    Listing      @relation(fields: [listingId], references: [id])
+  reporter   User         @relation(fields: [reporterId], references: [id])
+
+  @@unique([listingId, reporterId, status])
 }
