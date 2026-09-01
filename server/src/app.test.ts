@@ -41,6 +41,48 @@ describe("GET /api/listings", () => {
       ])
     );
   });
+
+  it("filters listings with valid query parameters", async () => {
+    const keyword = await request(app).get("/api/listings?search=desk");
+    expect(keyword.status).toBe(200);
+    expect(keyword.body).toEqual(expect.arrayContaining([expect.objectContaining({ title: "IKEA Study Desk" })]));
+
+    const category = await request(app).get("/api/listings?category=FURNITURE");
+    expect(category.status).toBe(200);
+    expect(category.body.every((listing: { category: string }) => listing.category === "FURNITURE")).toBe(true);
+
+    const condition = await request(app).get("/api/listings?condition=LIKE_NEW");
+    expect(condition.status).toBe(200);
+    expect(condition.body).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Desk Lamp" })]));
+
+    const minimum = await request(app).get("/api/listings?minPrice=3000");
+    expect(minimum.status).toBe(200);
+    expect(minimum.body.every((listing: { priceCents: number }) => listing.priceCents >= 3000)).toBe(true);
+
+    const maximum = await request(app).get("/api/listings?maxPrice=1600");
+    expect(maximum.status).toBe(200);
+    expect(maximum.body).toEqual(expect.arrayContaining([expect.objectContaining({ title: "Calculus Textbook" })]));
+
+    const combined = await request(app)
+      .get("/api/listings?search=desk&category=FURNITURE&condition=GOOD&minPrice=1000&maxPrice=5000");
+    expect(combined.status).toBe(200);
+    expect(combined.body).toEqual([expect.objectContaining({ title: "IKEA Study Desk" })]);
+  });
+
+  it("returns an empty array for valid filters with no matches", async () => {
+    const response = await request(app).get("/api/listings?category=FURNITURE&minPrice=999999999");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it("rejects invalid and nonsensical filters", async () => {
+    expect((await request(app).get("/api/listings?category=BANANA")).status).toBe(400);
+    expect((await request(app).get("/api/listings?condition=DESTROYED")).status).toBe(400);
+    expect((await request(app).get("/api/listings?minPrice=abc")).status).toBe(400);
+    expect((await request(app).get("/api/listings?minPrice=-100")).status).toBe(400);
+    expect((await request(app).get("/api/listings?minPrice=5000&maxPrice=1000")).status).toBe(400);
+  });
 });
 
 describe("authentication", () => {

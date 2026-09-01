@@ -31,6 +31,19 @@ const listingUpdateSchema = listingInputSchema.partial().refine(
   "Provide at least one listing field to update."
 );
 
+const priceQuerySchema = z.string()
+  .regex(/^\d+$/, "Price filters must be non-negative integer cents.")
+  .transform(Number)
+  .optional();
+
+const listingsQuerySchema = z.object({
+  search: z.string().optional().transform((value) => value?.trim() || undefined),
+  category: z.enum(["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"]).optional(),
+  condition: z.enum(["LIKE_NEW", "GOOD", "FAIR"]).optional(),
+  minPrice: priceQuerySchema,
+  maxPrice: priceQuerySchema
+});
+
 const listingSelect = {
   id: true, title: true, description: true, priceCents: true, category: true,
   condition: true, location: true, status: true, createdAt: true,
@@ -54,9 +67,37 @@ app.get("/api/health", (_request, response) => {
   response.status(200).json({ status: "ok" });
 });
 
-app.get("/api/listings", async (_request, response, next) => {
+app.get("/api/listings", async (request, response, next) => {
+  const parsed = listingsQuerySchema.safeParse(request.query);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid listing filters." });
+    return;
+  }
+  const { search, category, condition, minPrice, maxPrice } = parsed.data;
+  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+    response.status(400).json({ error: "Minimum price cannot exceed maximum price." });
+    return;
+  }
+
+  const where: Prisma.ListingWhereInput = {
+    ...(search
+      ? {
+          OR: [
+            { title: { contains: search, mode: "insensitive" } },
+            { description: { contains: search, mode: "insensitive" } }
+          ]
+        }
+      : {}),
+    ...(category ? { category } : {}),
+    ...(condition ? { condition } : {}),
+    ...(minPrice !== undefined || maxPrice !== undefined
+      ? { priceCents: { ...(minPrice !== undefined ? { gte: minPrice } : {}), ...(maxPrice !== undefined ? { lte: maxPrice } : {}) } }
+      : {})
+  };
+
   try {
     const listings = await prisma.listing.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       select: listingSelect
     });

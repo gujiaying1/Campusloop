@@ -17,6 +17,14 @@ type CurrentUser = { id: number; name: string; email: string; createdAt: string 
 
 type AuthMode = "login" | "register";
 
+type ListingFilters = {
+  search: string;
+  category: string;
+  condition: string;
+  minPrice: string;
+  maxPrice: string;
+};
+
 const categories = ["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"];
 const conditions = ["LIKE_NEW", "GOOD", "FAIR"];
 
@@ -30,11 +38,37 @@ export default function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
   const [listingActionError, setListingActionError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<ListingFilters>({ search: "", category: "", condition: "", minPrice: "", maxPrice: "" });
 
-  async function refreshListings() {
-    const response = await fetch("/api/listings");
-    if (!response.ok) throw new Error("The server could not load listings.");
+  function listingsUrl(activeFilters: ListingFilters) {
+    const params = new URLSearchParams();
+    const addPrice = (value: string, name: "minPrice" | "maxPrice") => {
+      if (!value.trim()) return;
+      const dollars = Number(value);
+      if (!Number.isFinite(dollars) || dollars < 0) {
+        throw new Error(`${name === "minPrice" ? "Minimum" : "Maximum"} price must be a non-negative NZD amount.`);
+      }
+      params.set(name, String(Math.round(dollars * 100)));
+    };
+
+    if (activeFilters.search.trim()) params.set("search", activeFilters.search.trim());
+    if (activeFilters.category) params.set("category", activeFilters.category);
+    if (activeFilters.condition) params.set("condition", activeFilters.condition);
+    addPrice(activeFilters.minPrice, "minPrice");
+    addPrice(activeFilters.maxPrice, "maxPrice");
+
+    const query = params.toString();
+    return `/api/listings${query ? `?${query}` : ""}`;
+  }
+
+  async function refreshListings(activeFilters = filters) {
+    const response = await fetch(listingsUrl(activeFilters));
+    if (!response.ok) {
+      const body = (await response.json()) as { error?: string };
+      throw new Error(body.error ?? "The server could not load listings.");
+    }
     setListings((await response.json()) as Listing[]);
+    setError(null);
   }
 
   useEffect(() => {
@@ -169,6 +203,31 @@ export default function App() {
     }
   }
 
+  async function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    try {
+      await refreshListings(filters);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to filter listings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function clearFilters() {
+    const clearedFilters = { search: "", category: "", condition: "", minPrice: "", maxPrice: "" };
+    setFilters(clearedFilters);
+    setIsLoading(true);
+    try {
+      await refreshListings(clearedFilters);
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Unable to load listings.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
     <main>
       <h1>CampusLoop</h1>
@@ -212,6 +271,17 @@ export default function App() {
           {listingActionError && <p role="alert">{listingActionError}</p>}
         </section>
       )}
+      <section aria-label="Listing filters" className="filters">
+        <h2>Find listings</h2>
+        <form onSubmit={applyFilters}>
+          <label>Keyword <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search title or description" /></label>
+          <label>Category <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+          <label>Condition <select value={filters.condition} onChange={(event) => setFilters({ ...filters, condition: event.target.value })}><option value="">All conditions</option>{conditions.map((condition) => <option key={condition}>{condition}</option>)}</select></label>
+          <label>Minimum price (NZD) <input type="number" min="0" step="0.01" value={filters.minPrice} onChange={(event) => setFilters({ ...filters, minPrice: event.target.value })} /></label>
+          <label>Maximum price (NZD) <input type="number" min="0" step="0.01" value={filters.maxPrice} onChange={(event) => setFilters({ ...filters, maxPrice: event.target.value })} /></label>
+          <div className="filter-actions"><button type="submit">Apply filters</button><button type="button" onClick={() => void clearFilters()}>Clear filters</button></div>
+        </form>
+      </section>
       {isLoading && <p>Loading listings…</p>}
       {error !== null && <p role="alert">{error}</p>}
       {!isLoading && error === null && listings.length > 0 && (
@@ -231,7 +301,7 @@ export default function App() {
           ))}
         </section>
       )}
-      {!isLoading && error === null && listings.length === 0 && <p>No listings are available yet.</p>}
+      {!isLoading && error === null && listings.length === 0 && <p>No listings match these filters.</p>}
     </main>
   );
 }

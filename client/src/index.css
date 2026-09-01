@@ -36,3 +36,11 @@ article p { margin: 0.5rem 0 0; }
 .listing-form textarea { min-height: 5rem; resize: vertical; }
 .listing-form-actions, .listing-actions { display: flex; gap: 0.5rem; }
 .listing-form button, .listing-actions button { width: fit-content; padding: 0.5rem 0.75rem; cursor: pointer; }
+
+.filters { margin-top: 2rem; padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; text-align: left; }
+.filters h2 { margin-top: 0; }
+.filters form { display: grid; gap: 0.75rem; }
+.filters label { display: grid; gap: 0.25rem; color: #475569; }
+.filters input, .filters select { padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.25rem; font: inherit; }
+.filter-actions { display: flex; gap: 0.5rem; }
+.filter-actions button { width: fit-content; padding: 0.5rem 0.75rem; cursor: pointer; }
