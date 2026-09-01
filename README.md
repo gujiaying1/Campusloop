@@ -8,6 +8,8 @@ CampusLoop is intended to become a bilingual second-hand marketplace for Massey 
 - Express API with `GET /api/health`, returning `{ "status": "ok" }`, and `GET /api/listings`.
 - PostgreSQL and Prisma with User and Listing models plus repeatable demo seed data.
 - Register, login, current-user, and logout authentication backed by bcrypt password hashes and an HttpOnly JWT cookie.
+- Authenticated listing creation, updates, and deletion. Public listing reads remain available to everyone.
+- Listing ownership is enforced by the backend: authentication identifies a user, then only that user may change or delete listings they own.
 - Vite proxy for `/api` requests to the backend at port 3001.
 - Vitest and Supertest coverage for the health endpoint.
 
@@ -51,5 +53,10 @@ npm run db:seed
 ```
 
 The frontend uses `fetch("/api/listings")`; Vite forwards this request to `http://localhost:3001` during development.
+
+## Current API
+
+- `GET /api/listings` and `GET /api/listings/:id` are public.
+- `POST /api/listings`, `PATCH /api/listings/:id`, and `DELETE /api/listings/:id` require authentication. The server derives a new listing's seller from the signed-in user and returns `403` for attempts to modify another user's listing.
 
 Build either project with `npm run build` from its folder. Run the backend automated test with `cd server && npm test`.

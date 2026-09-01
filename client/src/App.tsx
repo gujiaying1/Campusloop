@@ -17,6 +17,9 @@ type CurrentUser = { id: number; name: string; email: string; createdAt: string 
 
 type AuthMode = "login" | "register";
 
+const categories = ["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"];
+const conditions = ["LIKE_NEW", "GOOD", "FAIR"];
+
 export default function App() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -25,15 +28,19 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [editingListing, setEditingListing] = useState<Listing | null>(null);
+  const [listingActionError, setListingActionError] = useState<string | null>(null);
+
+  async function refreshListings() {
+    const response = await fetch("/api/listings");
+    if (!response.ok) throw new Error("The server could not load listings.");
+    setListings((await response.json()) as Listing[]);
+  }
 
   useEffect(() => {
     async function loadListings() {
       try {
-        const response = await fetch("/api/listings");
-        if (!response.ok) {
-          throw new Error("The server could not load listings.");
-        }
-        setListings((await response.json()) as Listing[]);
+        await refreshListings();
       } catch (caughtError) {
         console.error(caughtError);
         setError("Unable to load listings. Please make sure the backend is running and try again.");
@@ -102,8 +109,63 @@ export default function App() {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error("Unable to log out.");
       setUser(null);
+      setEditingListing(null);
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to log out.");
+    }
+  }
+
+  async function submitListing(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const priceDollars = Number(data.get("price"));
+    const priceCents = Math.round(priceDollars * 100);
+
+    setListingActionError(null);
+    if (!Number.isFinite(priceDollars) || priceCents <= 0) {
+      setListingActionError("Enter a valid positive NZD price.");
+      return;
+    }
+
+    const payload = {
+      title: String(data.get("title") ?? "").trim(),
+      description: String(data.get("description") ?? "").trim(),
+      priceCents,
+      category: String(data.get("category") ?? ""),
+      condition: String(data.get("condition") ?? ""),
+      location: String(data.get("location") ?? "").trim()
+    };
+    const endpoint = editingListing ? `/api/listings/${editingListing.id}` : "/api/listings";
+
+    try {
+      const response = await fetch(endpoint, {
+        method: editingListing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Unable to save the listing.");
+      await refreshListings();
+      setEditingListing(null);
+      event.currentTarget.reset();
+    } catch (caughtError) {
+      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to save the listing.");
+    }
+  }
+
+  async function deleteListing(listing: Listing) {
+    if (!window.confirm(`Delete “${listing.title}”?`)) return;
+    setListingActionError(null);
+    try {
+      const response = await fetch(`/api/listings/${listing.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? "Unable to delete the listing.");
+      }
+      await refreshListings();
+      if (editingListing?.id === listing.id) setEditingListing(null);
+    } catch (caughtError) {
+      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to delete the listing.");
     }
   }
 
@@ -132,6 +194,24 @@ export default function App() {
         )}
         {authError && <p role="alert">{authError}</p>}
       </section>
+      {user && (
+        <section aria-label="Manage listings" className="listing-form">
+          <h2>{editingListing ? "Edit listing" : "Create listing"}</h2>
+          <form key={editingListing?.id ?? "new"} onSubmit={submitListing}>
+            <label>Title <input name="title" required defaultValue={editingListing?.title ?? ""} /></label>
+            <label>Description <textarea name="description" required defaultValue={editingListing?.description ?? ""} /></label>
+            <label>Price (NZD) <input name="price" type="number" min="0.01" step="0.01" required defaultValue={editingListing ? (editingListing.priceCents / 100).toFixed(2) : ""} /></label>
+            <label>Category <select name="category" defaultValue={editingListing?.category ?? "OTHER"}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
+            <label>Condition <select name="condition" defaultValue={editingListing?.condition ?? "GOOD"}>{conditions.map((condition) => <option key={condition}>{condition}</option>)}</select></label>
+            <label>Location <input name="location" required defaultValue={editingListing?.location ?? ""} /></label>
+            <div className="listing-form-actions">
+              <button type="submit">{editingListing ? "Save changes" : "Create listing"}</button>
+              {editingListing && <button type="button" onClick={() => setEditingListing(null)}>Cancel</button>}
+            </div>
+          </form>
+          {listingActionError && <p role="alert">{listingActionError}</p>}
+        </section>
+      )}
       {isLoading && <p>Loading listings…</p>}
       {error !== null && <p role="alert">{error}</p>}
       {!isLoading && error === null && listings.length > 0 && (
@@ -141,6 +221,12 @@ export default function App() {
               <h2>{listing.title}</h2>
               <p>{new Intl.NumberFormat("en-NZ", { style: "currency", currency: "NZD" }).format(listing.priceCents / 100)}</p>
               <p>{listing.category.replace(/_/g, " ")} · {listing.condition.replace(/_/g, " ")} · {listing.location}</p>
+              {user?.id === listing.seller.id && (
+                <p className="listing-actions">
+                  <button type="button" onClick={() => { setEditingListing(listing); setListingActionError(null); }}>Edit</button>
+                  <button type="button" onClick={() => void deleteListing(listing)}>Delete</button>
+                </p>
+              )}
             </article>
           ))}
         </section>

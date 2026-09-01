@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import cookieParser from "cookie-parser";
 import express from "express";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { clearAuthCookie, requireAuth, setAuthCookie } from "./auth.js";
 import prisma from "./prisma.js";
@@ -15,6 +16,32 @@ const credentialsSchema = z.object({
 const registerSchema = credentialsSchema.extend({
   name: z.string().trim().min(1, "Name is required.")
 });
+
+const listingInputSchema = z.object({
+  title: z.string().trim().min(1, "Title is required."),
+  description: z.string().trim().min(1, "Description is required."),
+  priceCents: z.number().int().positive("Price must be a positive number of cents."),
+  category: z.enum(["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"]),
+  condition: z.enum(["LIKE_NEW", "GOOD", "FAIR"]),
+  location: z.string().trim().min(1, "Location is required.")
+});
+
+const listingUpdateSchema = listingInputSchema.partial().refine(
+  (data) => Object.keys(data).length > 0,
+  "Provide at least one listing field to update."
+);
+
+const listingSelect = {
+  id: true, title: true, description: true, priceCents: true, category: true,
+  condition: true, location: true, status: true, createdAt: true,
+  seller: { select: { id: true, name: true } }
+} satisfies Prisma.ListingSelect;
+
+function listingId(value: string | string[] | undefined): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = z.coerce.number().int().positive().safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
 
 function publicUser(user: { id: number; name: string; email: string; createdAt: Date }) {
   return { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
@@ -31,13 +58,99 @@ app.get("/api/listings", async (_request, response, next) => {
   try {
     const listings = await prisma.listing.findMany({
       orderBy: { createdAt: "desc" },
-      select: {
-        id: true, title: true, description: true, priceCents: true, category: true,
-        condition: true, location: true, status: true, createdAt: true,
-        seller: { select: { id: true, name: true } }
-      }
+      select: listingSelect
     });
     response.json(listings);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/listings/:id", async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) {
+    response.status(400).json({ error: "Listing id must be a positive integer." });
+    return;
+  }
+
+  try {
+    const listing = await prisma.listing.findUnique({ where: { id }, select: listingSelect });
+    if (!listing) {
+      response.status(404).json({ error: "Listing not found." });
+      return;
+    }
+    response.json(listing);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/listings", requireAuth, async (request, response, next) => {
+  const parsed = listingInputSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid listing details." });
+    return;
+  }
+
+  try {
+    const listing = await prisma.listing.create({
+      data: { ...parsed.data, sellerId: request.auth!.userId },
+      select: listingSelect
+    });
+    response.status(201).json(listing);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.patch("/api/listings/:id", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) {
+    response.status(400).json({ error: "Listing id must be a positive integer." });
+    return;
+  }
+  const parsed = listingUpdateSchema.safeParse(request.body);
+  if (!parsed.success) {
+    response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid listing details." });
+    return;
+  }
+
+  try {
+    const existing = await prisma.listing.findUnique({ where: { id } });
+    if (!existing) {
+      response.status(404).json({ error: "Listing not found." });
+      return;
+    }
+    if (existing.sellerId !== request.auth!.userId) {
+      response.status(403).json({ error: "You can only edit your own listings." });
+      return;
+    }
+    const listing = await prisma.listing.update({ where: { id }, data: parsed.data, select: listingSelect });
+    response.json(listing);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/listings/:id", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) {
+    response.status(400).json({ error: "Listing id must be a positive integer." });
+    return;
+  }
+
+  try {
+    const existing = await prisma.listing.findUnique({ where: { id } });
+    if (!existing) {
+      response.status(404).json({ error: "Listing not found." });
+      return;
+    }
+    if (existing.sellerId !== request.auth!.userId) {
+      response.status(403).json({ error: "You can only delete your own listings." });
+      return;
+    }
+    await prisma.listing.delete({ where: { id } });
+    response.status(204).send();
   } catch (error) {
     next(error);
   }
