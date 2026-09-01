@@ -11,10 +11,15 @@ const secondFavouriteEmail = `favourite-second-${Date.now()}@massey.ac.nz`;
 const messageSellerEmail = `message-seller-${Date.now()}@massey.ac.nz`;
 const messageBuyerEmail = `message-buyer-${Date.now()}@massey.ac.nz`;
 const messageThirdEmail = `message-third-${Date.now()}@massey.ac.nz`;
+const reservationSellerEmail = `reservation-seller-${Date.now()}@massey.ac.nz`;
+const reservationBuyerAEmail = `reservation-buyer-a-${Date.now()}@massey.ac.nz`;
+const reservationBuyerBEmail = `reservation-buyer-b-${Date.now()}@massey.ac.nz`;
+const reservationThirdEmail = `reservation-third-${Date.now()}@massey.ac.nz`;
 const testPassword = "secure-password-123";
-const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail, messageSellerEmail, messageBuyerEmail, messageThirdEmail];
+const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail, messageSellerEmail, messageBuyerEmail, messageThirdEmail, reservationSellerEmail, reservationBuyerAEmail, reservationBuyerBEmail, reservationThirdEmail];
 
 afterAll(async () => {
+  await prisma.reservation.deleteMany({ where: { OR: [{ buyer: { email: { in: testEmails } } }, { listing: { seller: { email: { in: testEmails } } } }] } });
   await prisma.message.deleteMany({ where: { sender: { email: { in: testEmails } } } });
   await prisma.conversation.deleteMany({ where: { OR: [{ buyer: { email: { in: testEmails } } }, { seller: { email: { in: testEmails } } }] } });
   await prisma.favourite.deleteMany({ where: { user: { email: { in: testEmails } } } });
@@ -286,5 +291,65 @@ describe("messaging", () => {
     expect(messages.body.map((message: { content: string }) => message.content)).toEqual(["Hi, is this still available?", "Yes, it is."]);
     expect((await seller.agent.get(`/api/conversations/${conversationId}/messages`)).status).toBe(200);
     expect((await buyer.agent.get("/api/conversations")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: conversationId })]));
+  });
+});
+
+describe("reservations", () => {
+  async function register(name: string, email: string) {
+    const agent = request.agent(app);
+    const response = await agent.post("/api/auth/register").send({ name, email, password: testPassword });
+    expect(response.status).toBe(201);
+    return { agent, id: response.body.user.id as number };
+  }
+  async function createListing(agent: ReturnType<typeof request.agent>, title: string) {
+    const response = await agent.post("/api/listings").send({ title, description: "Reservation test listing.", priceCents: 1000, category: "OTHER", condition: "GOOD", location: "Albany" });
+    expect(response.status).toBe(201); return response.body.id as number;
+  }
+
+  it("enforces the complete reservation workflow", async () => {
+    const seller = await register("Reservation Seller", reservationSellerEmail);
+    const buyerA = await register("Reservation Buyer A", reservationBuyerAEmail);
+    const buyerB = await register("Reservation Buyer B", reservationBuyerBEmail);
+    const third = await register("Reservation Third", reservationThirdEmail);
+    const listingId = await createListing(seller.agent, "Reservation Primary");
+    expect((await request(app).post(`/api/listings/${listingId}/reservations`)).status).toBe(401);
+    expect((await seller.agent.post(`/api/listings/${listingId}/reservations`)).status).toBe(400);
+    expect((await buyerA.agent.post("/api/listings/999999999/reservations")).status).toBe(404);
+    expect((await third.agent.get("/api/reservations")).body).toEqual([]);
+
+    const pendingA = await buyerA.agent.post(`/api/listings/${listingId}/reservations`);
+    expect(pendingA.status).toBe(201); expect(pendingA.body).toMatchObject({ buyer: { id: buyerA.id }, status: "PENDING" });
+    const reservationA = pendingA.body.id as number;
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).status).toBe("AVAILABLE");
+    expect((await buyerA.agent.post(`/api/listings/${listingId}/reservations`)).status).toBe(200);
+    expect(await prisma.reservation.count({ where: { listingId, buyerId: buyerA.id, status: "PENDING" } })).toBe(1);
+    const pendingB = await buyerB.agent.post(`/api/listings/${listingId}/reservations`);
+    const reservationB = pendingB.body.id as number;
+    expect((await third.agent.post(`/api/reservations/${reservationA}/accept`)).status).toBe(403);
+    expect((await seller.agent.post(`/api/reservations/${reservationA}/accept`)).status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationA } })).status).toBe("ACCEPTED");
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: reservationB } })).status).toBe("DECLINED");
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).status).toBe("RESERVED");
+    expect((await buyerB.agent.post(`/api/listings/${listingId}/reservations`)).status).toBe(409);
+    expect((await seller.agent.post(`/api/reservations/${reservationB}/accept`)).status).toBe(409);
+    expect((await buyerA.agent.post(`/api/listings/${listingId}/sold`)).status).toBe(403);
+    expect((await seller.agent.post(`/api/listings/${listingId}/sold`)).status).toBe(200);
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: listingId } })).status).toBe("SOLD");
+    expect((await third.agent.post(`/api/listings/${listingId}/reservations`)).status).toBe(409);
+
+    const cancelListing = await createListing(seller.agent, "Reservation Cancel");
+    const cancel = await buyerA.agent.post(`/api/listings/${cancelListing}/reservations`);
+    expect((await third.agent.post(`/api/reservations/${cancel.body.id}/cancel`)).status).toBe(403);
+    expect((await buyerA.agent.post(`/api/reservations/${cancel.body.id}/cancel`)).status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: cancel.body.id } })).status).toBe("CANCELLED");
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: cancelListing } })).status).toBe("AVAILABLE");
+
+    const declineListing = await createListing(seller.agent, "Reservation Decline");
+    const declined = await buyerA.agent.post(`/api/listings/${declineListing}/reservations`);
+    expect((await seller.agent.post(`/api/reservations/${declined.body.id}/decline`)).status).toBe(200);
+    expect((await prisma.reservation.findUniqueOrThrow({ where: { id: declined.body.id } })).status).toBe("DECLINED");
+    expect((await prisma.listing.findUniqueOrThrow({ where: { id: declineListing } })).status).toBe("AVAILABLE");
+    expect((await buyerA.agent.get("/api/reservations")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: reservationA })]));
+    expect((await third.agent.get("/api/reservations")).body).toEqual([]);
   });
 });

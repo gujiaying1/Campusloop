@@ -28,6 +28,13 @@ enum ListingStatus {
   SOLD
 }
 
+enum ReservationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
 model User {
   id        Int       @id @default(autoincrement())
   name      String
@@ -39,6 +46,7 @@ model User {
   buyerConversations Conversation[] @relation("ConversationBuyer")
   sellerConversations Conversation[] @relation("ConversationSeller")
   sentMessages Message[]
+  reservations Reservation[]
 }
 
 model Listing {
@@ -56,6 +64,7 @@ model Listing {
   updatedAt   DateTime         @updatedAt
   favourites  Favourite[]
   conversations Conversation[]
+  reservations Reservation[]
 
   @@unique([sellerId, title])
 }
@@ -93,4 +102,17 @@ model Message {
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model Reservation {
+  id        Int               @id @default(autoincrement())
+  listingId Int
+  buyerId   Int
+  status    ReservationStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  listing   Listing           @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer     User              @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, buyerId, status])
 }

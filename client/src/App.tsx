@@ -27,6 +27,7 @@ type ListingFilters = {
 
 type Conversation = { id: number; buyerId: number; sellerId: number; listing: Listing; buyer: CurrentUser; seller: CurrentUser };
 type Message = { id: number; content: string; createdAt: string; sender: { id: number; name: string; email: string } };
+type Reservation = { id: number; status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED"; listing: Listing; buyer: { id: number; name: string; email: string } };
 
 const categories = ["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"];
 const conditions = ["LIKE_NEW", "GOOD", "FAIR"];
@@ -48,6 +49,7 @@ export default function App() {
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
 
   function listingsUrl(activeFilters: ListingFilters) {
     const params = new URLSearchParams();
@@ -91,6 +93,11 @@ export default function App() {
     if (!response.ok) throw new Error("Unable to load conversations.");
     setConversations((await response.json()) as Conversation[]);
   }
+  async function refreshReservations() {
+    const response = await fetch("/api/reservations");
+    if (!response.ok) throw new Error("Unable to load reservations.");
+    setReservations((await response.json()) as Reservation[]);
+  }
 
   async function loadMessages(conversation: Conversation) {
     try {
@@ -125,6 +132,7 @@ export default function App() {
         setUser(((await response.json()) as { user: CurrentUser }).user);
         await refreshFavourites();
         await refreshConversations();
+        await refreshReservations();
       } catch (caughtError) {
         console.error(caughtError);
         setAuthError("Unable to check your sign-in status.");
@@ -167,6 +175,7 @@ export default function App() {
       setUser(body.user);
       await refreshFavourites();
       await refreshConversations();
+      await refreshReservations();
       event.currentTarget.reset();
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to sign in.");
@@ -184,6 +193,7 @@ export default function App() {
       setConversations([]);
       setSelectedConversation(null);
       setMessages([]);
+      setReservations([]);
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to log out.");
     }
@@ -309,6 +319,10 @@ export default function App() {
       await refreshConversations();
     } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to send message."); }
   }
+  async function reservationAction(url: string) {
+    try { const response = await fetch(url, { method: "POST" }); const body = (await response.json()) as { error?: string }; if (!response.ok) throw new Error(body.error ?? "Unable to update reservation."); await refreshReservations(); await refreshListings(); }
+    catch (caughtError) { setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to update reservation."); }
+  }
 
   const displayedListings = showFavourites ? favourites : listings;
 
@@ -355,6 +369,7 @@ export default function App() {
           {listingActionError && <p role="alert">{listingActionError}</p>}
         </section>
       )}
+      {user && <section aria-label="Reservations" className="messages-panel"><h2>Reservations</h2>{reservations.length === 0 ? <p>No reservations yet.</p> : reservations.map((reservation) => <div key={reservation.id}><strong>{reservation.listing.title}</strong> — {reservation.status} {reservation.buyer.id === user.id && reservation.status === "PENDING" && <button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/cancel`)}>Cancel</button>} {reservation.listing.seller.id === user.id && reservation.status === "PENDING" && <><button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/accept`)}>Accept</button><button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/decline`)}>Decline</button></>}</div>)}</section>}
       {user && (
         <div className="favourite-view-toggle">
           <button type="button" onClick={() => setShowFavourites(false)}>All listings</button>
@@ -403,6 +418,8 @@ export default function App() {
                 </p>
               )}
               {user && user.id !== listing.seller.id && <p className="listing-actions"><button type="button" onClick={() => void startConversation(listing)}>Message seller</button></p>}
+              {user && user.id !== listing.seller.id && listing.status === "AVAILABLE" && <p className="listing-actions"><button type="button" onClick={() => void reservationAction(`/api/listings/${listing.id}/reservations`)}>Request reservation</button></p>}
+              {user && user.id === listing.seller.id && listing.status === "RESERVED" && <p className="listing-actions"><button type="button" onClick={() => void reservationAction(`/api/listings/${listing.id}/sold`)}>Mark sold</button></p>}
             </article>
           ))}
         </section>

@@ -60,6 +60,7 @@ const conversationSelect = {
 function isParticipant(conversation: { buyerId: number; sellerId: number }, userId: number) {
   return conversation.buyerId === userId || conversation.sellerId === userId;
 }
+const reservationSelect = { id: true, status: true, createdAt: true, updatedAt: true, listing: { select: listingSelect }, buyer: { select: safeUserSelect } } satisfies Prisma.ReservationSelect;
 
 function listingId(value: string | string[] | undefined): number | null {
   if (typeof value !== "string") return null;
@@ -310,6 +311,77 @@ app.post("/api/conversations/:id/messages", requireAuth, async (request, respons
     if (!isParticipant(conversation, request.auth!.userId)) return response.status(403).json({ error: "You are not a participant in this conversation." });
     const message = await prisma.message.create({ data: { conversationId: id, senderId: request.auth!.userId, content: parsed.data.content }, select: { id: true, content: true, createdAt: true, sender: { select: safeUserSelect } } });
     response.status(201).json(message);
+  } catch (error) { next(error); }
+});
+
+app.post("/api/listings/:id/reservations", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
+  try {
+    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, sellerId: true, status: true } });
+    if (!listing) return response.status(404).json({ error: "Listing not found." });
+    if (listing.sellerId === request.auth!.userId) return response.status(400).json({ error: "You cannot reserve your own listing." });
+    if (listing.status !== "AVAILABLE") return response.status(409).json({ error: "This listing is not available for reservation." });
+    const existing = await prisma.reservation.findFirst({ where: { listingId: id, buyerId: request.auth!.userId, status: "PENDING" }, select: reservationSelect });
+    if (existing) return response.json(existing);
+    const reservation = await prisma.reservation.create({ data: { listingId: id, buyerId: request.auth!.userId }, select: reservationSelect });
+    response.status(201).json(reservation);
+  } catch (error) { next(error); }
+});
+
+app.get("/api/reservations", requireAuth, async (request, response, next) => {
+  try {
+    const reservations = await prisma.reservation.findMany({ where: { OR: [{ buyerId: request.auth!.userId }, { listing: { sellerId: request.auth!.userId } }] }, orderBy: { createdAt: "desc" }, select: reservationSelect });
+    response.json(reservations);
+  } catch (error) { next(error); }
+});
+
+app.post("/api/reservations/:id/accept", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Reservation id must be a positive integer." });
+  try {
+    const reservation = await prisma.reservation.findUnique({ where: { id }, include: { listing: true } });
+    if (!reservation) return response.status(404).json({ error: "Reservation not found." });
+    if (reservation.listing.sellerId !== request.auth!.userId) return response.status(403).json({ error: "Only the seller can accept reservations." });
+    if (reservation.status !== "PENDING" || reservation.listing.status !== "AVAILABLE") return response.status(409).json({ error: "This reservation cannot be accepted." });
+    await prisma.$transaction([
+      prisma.reservation.update({ where: { id }, data: { status: "ACCEPTED" } }),
+      prisma.listing.update({ where: { id: reservation.listingId }, data: { status: "RESERVED" } }),
+      prisma.reservation.updateMany({ where: { listingId: reservation.listingId, status: "PENDING", id: { not: id } }, data: { status: "DECLINED" } })
+    ]);
+    response.json(await prisma.reservation.findUniqueOrThrow({ where: { id }, select: reservationSelect }));
+  } catch (error) { next(error); }
+});
+
+app.post("/api/reservations/:id/decline", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Reservation id must be a positive integer." });
+  try {
+    const reservation = await prisma.reservation.findUnique({ where: { id }, include: { listing: true } });
+    if (!reservation) return response.status(404).json({ error: "Reservation not found." });
+    if (reservation.listing.sellerId !== request.auth!.userId) return response.status(403).json({ error: "Only the seller can decline reservations." });
+    if (reservation.status !== "PENDING") return response.status(409).json({ error: "This reservation cannot be declined." });
+    response.json(await prisma.reservation.update({ where: { id }, data: { status: "DECLINED" }, select: reservationSelect }));
+  } catch (error) { next(error); }
+});
+
+app.post("/api/reservations/:id/cancel", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Reservation id must be a positive integer." });
+  try {
+    const reservation = await prisma.reservation.findUnique({ where: { id } });
+    if (!reservation) return response.status(404).json({ error: "Reservation not found." });
+    if (reservation.buyerId !== request.auth!.userId) return response.status(403).json({ error: "Only the buyer can cancel this reservation." });
+    if (reservation.status !== "PENDING") return response.status(409).json({ error: "This reservation cannot be cancelled." });
+    response.json(await prisma.reservation.update({ where: { id }, data: { status: "CANCELLED" }, select: reservationSelect }));
+  } catch (error) { next(error); }
+});
+
+app.post("/api/listings/:id/sold", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id); if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
+  try {
+    const listing = await prisma.listing.findUnique({ where: { id } });
+    if (!listing) return response.status(404).json({ error: "Listing not found." });
+    if (listing.sellerId !== request.auth!.userId) return response.status(403).json({ error: "Only the seller can mark this listing sold." });
+    if (listing.status !== "RESERVED") return response.status(409).json({ error: "Only reserved listings can be marked sold." });
+    response.json(await prisma.listing.update({ where: { id }, data: { status: "SOLD" }, select: listingSelect }));
   } catch (error) { next(error); }
 });
 
