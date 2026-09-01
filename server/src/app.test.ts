@@ -8,10 +8,15 @@ const ownerEmail = `listing-owner-${Date.now()}@massey.ac.nz`;
 const otherEmail = `listing-other-${Date.now()}@massey.ac.nz`;
 const favouriteEmail = `favourite-user-${Date.now()}@massey.ac.nz`;
 const secondFavouriteEmail = `favourite-second-${Date.now()}@massey.ac.nz`;
+const messageSellerEmail = `message-seller-${Date.now()}@massey.ac.nz`;
+const messageBuyerEmail = `message-buyer-${Date.now()}@massey.ac.nz`;
+const messageThirdEmail = `message-third-${Date.now()}@massey.ac.nz`;
 const testPassword = "secure-password-123";
-const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail];
+const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail, messageSellerEmail, messageBuyerEmail, messageThirdEmail];
 
 afterAll(async () => {
+  await prisma.message.deleteMany({ where: { sender: { email: { in: testEmails } } } });
+  await prisma.conversation.deleteMany({ where: { OR: [{ buyer: { email: { in: testEmails } } }, { seller: { email: { in: testEmails } } }] } });
   await prisma.favourite.deleteMany({ where: { user: { email: { in: testEmails } } } });
   await prisma.listing.deleteMany({ where: { seller: { email: { in: testEmails } } } });
   await prisma.user.deleteMany({ where: { email: { in: testEmails } } });
@@ -240,5 +245,46 @@ describe("favourites", () => {
     expect((await firstUser.delete(`/api/listings/${target.id}/favourite`)).status).toBe(200);
     expect((await firstUser.get("/api/favourites")).body).toEqual([]);
     expect((await secondUser.get("/api/favourites")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: target.id })]));
+  });
+});
+
+describe("messaging", () => {
+  async function registerAgent(name: string, email: string) {
+    const agent = request.agent(app);
+    const response = await agent.post("/api/auth/register").send({ name, email, password: testPassword });
+    expect(response.status).toBe(201);
+    return { agent, userId: response.body.user.id as number };
+  }
+
+  it("creates one participant-only conversation with persisted messages", async () => {
+    const seller = await registerAgent("Message Seller", messageSellerEmail);
+    const buyer = await registerAgent("Message Buyer", messageBuyerEmail);
+    const third = await registerAgent("Message Third", messageThirdEmail);
+    const listing = await seller.agent.post("/api/listings").send({ title: "Message Test Item", description: "Test listing for messaging.", priceCents: 1000, category: "OTHER", condition: "GOOD", location: "Albany" });
+    expect(listing.status).toBe(201);
+    const listingId = listing.body.id as number;
+
+    expect((await request(app).post(`/api/listings/${listingId}/conversations`)).status).toBe(401);
+    expect((await buyer.agent.get("/api/conversations")).body).toEqual([]);
+    expect((await seller.agent.post(`/api/listings/${listingId}/conversations`)).status).toBe(400);
+    expect((await buyer.agent.post("/api/listings/999999999/conversations")).status).toBe(404);
+
+    const created = await buyer.agent.post(`/api/listings/${listingId}/conversations`);
+    expect(created.status).toBe(200);
+    expect(created.body).toMatchObject({ buyerId: buyer.userId, sellerId: seller.userId });
+    const conversationId = created.body.id as number;
+    expect((await buyer.agent.post(`/api/listings/${listingId}/conversations`)).body.id).toBe(conversationId);
+    expect(await prisma.conversation.count({ where: { listingId, buyerId: buyer.userId } })).toBe(1);
+
+    expect((await buyer.agent.post(`/api/conversations/${conversationId}/messages`).send({ content: "Hi, is this still available?" })).status).toBe(201);
+    expect((await seller.agent.post(`/api/conversations/${conversationId}/messages`).send({ content: "Yes, it is." })).status).toBe(201);
+    expect((await buyer.agent.post(`/api/conversations/${conversationId}/messages`).send({ content: "   " })).status).toBe(400);
+    expect((await third.agent.get(`/api/conversations/${conversationId}/messages`)).status).toBe(403);
+    expect((await third.agent.post(`/api/conversations/${conversationId}/messages`).send({ content: "Nope" })).status).toBe(403);
+    const messages = await buyer.agent.get(`/api/conversations/${conversationId}/messages`);
+    expect(messages.status).toBe(200);
+    expect(messages.body.map((message: { content: string }) => message.content)).toEqual(["Hi, is this still available?", "Yes, it is."]);
+    expect((await seller.agent.get(`/api/conversations/${conversationId}/messages`)).status).toBe(200);
+    expect((await buyer.agent.get("/api/conversations")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: conversationId })]));
   });
 });

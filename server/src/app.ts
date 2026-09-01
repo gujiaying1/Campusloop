@@ -50,6 +50,17 @@ const listingSelect = {
   seller: { select: { id: true, name: true } }
 } satisfies Prisma.ListingSelect;
 
+const safeUserSelect = { id: true, name: true, email: true } satisfies Prisma.UserSelect;
+const messageSchema = z.object({ content: z.string().trim().min(1, "Message cannot be blank.").max(1000, "Message is too long.") });
+const conversationSelect = {
+  id: true, buyerId: true, sellerId: true, createdAt: true, updatedAt: true,
+  listing: { select: listingSelect }, buyer: { select: safeUserSelect }, seller: { select: safeUserSelect }
+} satisfies Prisma.ConversationSelect;
+
+function isParticipant(conversation: { buyerId: number; sellerId: number }, userId: number) {
+  return conversation.buyerId === userId || conversation.sellerId === userId;
+}
+
 function listingId(value: string | string[] | undefined): number | null {
   if (typeof value !== "string") return null;
   const parsed = z.coerce.number().int().positive().safeParse(value);
@@ -247,6 +258,59 @@ app.get("/api/favourites", requireAuth, async (request, response, next) => {
   } catch (error) {
     next(error);
   }
+});
+
+app.post("/api/listings/:id/conversations", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) return response.status(400).json({ error: "Listing id must be a positive integer." });
+  try {
+    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true, sellerId: true } });
+    if (!listing) return response.status(404).json({ error: "Listing not found." });
+    if (listing.sellerId === request.auth!.userId) return response.status(400).json({ error: "You cannot message yourself about your own listing." });
+    const conversation = await prisma.conversation.upsert({
+      where: { listingId_buyerId: { listingId: id, buyerId: request.auth!.userId } },
+      update: {},
+      create: { listingId: id, buyerId: request.auth!.userId, sellerId: listing.sellerId },
+      select: conversationSelect
+    });
+    response.json(conversation);
+  } catch (error) { next(error); }
+});
+
+app.get("/api/conversations", requireAuth, async (request, response, next) => {
+  try {
+    const conversations = await prisma.conversation.findMany({
+      where: { OR: [{ buyerId: request.auth!.userId }, { sellerId: request.auth!.userId }] },
+      orderBy: { updatedAt: "desc" }, select: conversationSelect
+    });
+    response.json(conversations);
+  } catch (error) { next(error); }
+});
+
+app.get("/api/conversations/:id/messages", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) return response.status(400).json({ error: "Conversation id must be a positive integer." });
+  try {
+    const conversation = await prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) return response.status(404).json({ error: "Conversation not found." });
+    if (!isParticipant(conversation, request.auth!.userId)) return response.status(403).json({ error: "You are not a participant in this conversation." });
+    const messages = await prisma.message.findMany({ where: { conversationId: id }, orderBy: { createdAt: "asc" }, select: { id: true, content: true, createdAt: true, sender: { select: safeUserSelect } } });
+    response.json(messages);
+  } catch (error) { next(error); }
+});
+
+app.post("/api/conversations/:id/messages", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) return response.status(400).json({ error: "Conversation id must be a positive integer." });
+  const parsed = messageSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid message." });
+  try {
+    const conversation = await prisma.conversation.findUnique({ where: { id } });
+    if (!conversation) return response.status(404).json({ error: "Conversation not found." });
+    if (!isParticipant(conversation, request.auth!.userId)) return response.status(403).json({ error: "You are not a participant in this conversation." });
+    const message = await prisma.message.create({ data: { conversationId: id, senderId: request.auth!.userId, content: parsed.data.content }, select: { id: true, content: true, createdAt: true, sender: { select: safeUserSelect } } });
+    response.status(201).json(message);
+  } catch (error) { next(error); }
 });
 
 app.post("/api/auth/register", async (request, response, next) => {

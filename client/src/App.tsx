@@ -25,6 +25,9 @@ type ListingFilters = {
   maxPrice: string;
 };
 
+type Conversation = { id: number; buyerId: number; sellerId: number; listing: Listing; buyer: CurrentUser; seller: CurrentUser };
+type Message = { id: number; content: string; createdAt: string; sender: { id: number; name: string; email: string } };
+
 const categories = ["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"];
 const conditions = ["LIKE_NEW", "GOOD", "FAIR"];
 
@@ -41,6 +44,10 @@ export default function App() {
   const [filters, setFilters] = useState<ListingFilters>({ search: "", category: "", condition: "", minPrice: "", maxPrice: "" });
   const [favourites, setFavourites] = useState<Listing[]>([]);
   const [showFavourites, setShowFavourites] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [messageError, setMessageError] = useState<string | null>(null);
 
   function listingsUrl(activeFilters: ListingFilters) {
     const params = new URLSearchParams();
@@ -79,6 +86,22 @@ export default function App() {
     setFavourites((await response.json()) as Listing[]);
   }
 
+  async function refreshConversations() {
+    const response = await fetch("/api/conversations");
+    if (!response.ok) throw new Error("Unable to load conversations.");
+    setConversations((await response.json()) as Conversation[]);
+  }
+
+  async function loadMessages(conversation: Conversation) {
+    try {
+      const response = await fetch(`/api/conversations/${conversation.id}/messages`);
+      if (!response.ok) throw new Error("Unable to load messages.");
+      setSelectedConversation(conversation);
+      setMessages((await response.json()) as Message[]);
+      setMessageError(null);
+    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to load messages."); }
+  }
+
   useEffect(() => {
     async function loadListings() {
       try {
@@ -101,6 +124,7 @@ export default function App() {
         if (!response.ok) throw new Error("Unable to check authentication.");
         setUser(((await response.json()) as { user: CurrentUser }).user);
         await refreshFavourites();
+        await refreshConversations();
       } catch (caughtError) {
         console.error(caughtError);
         setAuthError("Unable to check your sign-in status.");
@@ -142,6 +166,7 @@ export default function App() {
       if (!response.ok || !body.user) throw new Error(body.error ?? "Unable to sign in.");
       setUser(body.user);
       await refreshFavourites();
+      await refreshConversations();
       event.currentTarget.reset();
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to sign in.");
@@ -156,6 +181,9 @@ export default function App() {
       setEditingListing(null);
       setFavourites([]);
       setShowFavourites(false);
+      setConversations([]);
+      setSelectedConversation(null);
+      setMessages([]);
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to log out.");
     }
@@ -257,6 +285,31 @@ export default function App() {
     }
   }
 
+  async function startConversation(listing: Listing) {
+    try {
+      const response = await fetch(`/api/listings/${listing.id}/conversations`, { method: "POST" });
+      const body = (await response.json()) as Conversation & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Unable to start conversation.");
+      await refreshConversations();
+      await loadMessages(body);
+    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to start conversation."); }
+  }
+
+  async function sendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedConversation) return;
+    const form = event.currentTarget;
+    const content = String(new FormData(form).get("content") ?? "");
+    try {
+      const response = await fetch(`/api/conversations/${selectedConversation.id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Unable to send message.");
+      form.reset();
+      await loadMessages(selectedConversation);
+      await refreshConversations();
+    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to send message."); }
+  }
+
   const displayedListings = showFavourites ? favourites : listings;
 
   return (
@@ -308,6 +361,14 @@ export default function App() {
           <button type="button" onClick={() => setShowFavourites(true)}>Favourites ({favourites.length})</button>
         </div>
       )}
+      {user && (
+        <section aria-label="Messages" className="messages-panel">
+          <h2>Messages</h2>
+          <div className="conversation-list">{conversations.length === 0 ? <p>No conversations yet.</p> : conversations.map((conversation) => <button key={conversation.id} type="button" onClick={() => void loadMessages(conversation)}>{conversation.listing.title} — {conversation.buyerId === user.id ? conversation.seller.name : conversation.buyer.name}</button>)}</div>
+          {selectedConversation && <div className="message-thread"><h3>{selectedConversation.listing.title}</h3>{messages.map((message) => <p key={message.id}><strong>{message.sender.name}:</strong> {message.content}</p>)}<form onSubmit={sendMessage}><label>Message <textarea name="content" required /></label><button type="submit">Send</button></form></div>}
+          {messageError && <p role="alert">{messageError}</p>}
+        </section>
+      )}
       <section aria-label="Listing filters" className="filters">
         <h2>Find listings</h2>
         <form onSubmit={applyFilters}>
@@ -341,6 +402,7 @@ export default function App() {
                   </button>
                 </p>
               )}
+              {user && user.id !== listing.seller.id && <p className="listing-actions"><button type="button" onClick={() => void startConversation(listing)}>Message seller</button></p>}
             </article>
           ))}
         </section>

@@ -47,3 +47,12 @@ article p { margin: 0.5rem 0 0; }
 
 .favourite-view-toggle { display: flex; gap: 0.5rem; margin-top: 2rem; }
 .favourite-view-toggle button { padding: 0.5rem 0.75rem; cursor: pointer; }
+
+.messages-panel { margin-top: 2rem; padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; text-align: left; }
+.messages-panel h2, .messages-panel h3 { margin-top: 0; }
+.conversation-list { display: grid; gap: 0.5rem; }
+.conversation-list button { text-align: left; padding: 0.5rem; cursor: pointer; }
+.message-thread { margin-top: 1rem; border-top: 1px solid #e2e8f0; padding-top: 1rem; }
+.message-thread form { display: grid; gap: 0.5rem; }
+.message-thread textarea { min-height: 4rem; padding: 0.5rem; font: inherit; }
+.message-thread button { width: fit-content; padding: 0.5rem 0.75rem; cursor: pointer; }
