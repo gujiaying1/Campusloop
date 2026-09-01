@@ -7,6 +7,7 @@ CampusLoop is intended to become a bilingual second-hand marketplace for Massey 
 - React frontend that loads listings from the API on page load.
 - Express API with `GET /api/health`, returning `{ "status": "ok" }`, and `GET /api/listings`.
 - PostgreSQL and Prisma with User and Listing models plus repeatable demo seed data.
+- Register, login, current-user, and logout authentication backed by bcrypt password hashes and an HttpOnly JWT cookie.
 - Vite proxy for `/api` requests to the backend at port 3001.
 - Vitest and Supertest coverage for the health endpoint.
 
@@ -39,6 +40,7 @@ cd client && npm run dev
 ```
 
 Copy `server/.env.example` to `server/.env` and set a valid local `DATABASE_URL` before running database commands.
+Set a strong `JWT_SECRET` in that local `.env` file before running the backend. The existing seeded Demo Student has no password hash, so it remains intentionally non-login-capable while preserving its listings.
 
 Create the schema and seed demo data:
 
