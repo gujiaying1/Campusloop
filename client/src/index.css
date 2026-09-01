@@ -44,3 +44,6 @@ article p { margin: 0.5rem 0 0; }
 .filters input, .filters select { padding: 0.5rem; border: 1px solid #cbd5e1; border-radius: 0.25rem; font: inherit; }
 .filter-actions { display: flex; gap: 0.5rem; }
 .filter-actions button { width: fit-content; padding: 0.5rem 0.75rem; cursor: pointer; }
+
+.favourite-view-toggle { display: flex; gap: 0.5rem; margin-top: 2rem; }
+.favourite-view-toggle button { padding: 0.5rem 0.75rem; cursor: pointer; }

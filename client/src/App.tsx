@@ -39,6 +39,8 @@ export default function App() {
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
   const [listingActionError, setListingActionError] = useState<string | null>(null);
   const [filters, setFilters] = useState<ListingFilters>({ search: "", category: "", condition: "", minPrice: "", maxPrice: "" });
+  const [favourites, setFavourites] = useState<Listing[]>([]);
+  const [showFavourites, setShowFavourites] = useState(false);
 
   function listingsUrl(activeFilters: ListingFilters) {
     const params = new URLSearchParams();
@@ -71,6 +73,12 @@ export default function App() {
     setError(null);
   }
 
+  async function refreshFavourites() {
+    const response = await fetch("/api/favourites");
+    if (!response.ok) throw new Error("Unable to load favourites.");
+    setFavourites((await response.json()) as Listing[]);
+  }
+
   useEffect(() => {
     async function loadListings() {
       try {
@@ -92,6 +100,7 @@ export default function App() {
         if (response.status === 401) return;
         if (!response.ok) throw new Error("Unable to check authentication.");
         setUser(((await response.json()) as { user: CurrentUser }).user);
+        await refreshFavourites();
       } catch (caughtError) {
         console.error(caughtError);
         setAuthError("Unable to check your sign-in status.");
@@ -132,6 +141,7 @@ export default function App() {
       const body = (await response.json()) as { user?: CurrentUser; error?: string };
       if (!response.ok || !body.user) throw new Error(body.error ?? "Unable to sign in.");
       setUser(body.user);
+      await refreshFavourites();
       event.currentTarget.reset();
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to sign in.");
@@ -144,6 +154,8 @@ export default function App() {
       if (!response.ok) throw new Error("Unable to log out.");
       setUser(null);
       setEditingListing(null);
+      setFavourites([]);
+      setShowFavourites(false);
     } catch (caughtError) {
       setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to log out.");
     }
@@ -180,6 +192,7 @@ export default function App() {
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Unable to save the listing.");
       await refreshListings();
+      if (user) await refreshFavourites();
       setEditingListing(null);
       event.currentTarget.reset();
     } catch (caughtError) {
@@ -197,6 +210,7 @@ export default function App() {
         throw new Error(body.error ?? "Unable to delete the listing.");
       }
       await refreshListings();
+      if (user) await refreshFavourites();
       if (editingListing?.id === listing.id) setEditingListing(null);
     } catch (caughtError) {
       setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to delete the listing.");
@@ -227,6 +241,23 @@ export default function App() {
       setIsLoading(false);
     }
   }
+
+  async function toggleFavourite(listing: Listing) {
+    const isFavourited = favourites.some((favourite) => favourite.id === listing.id);
+    setListingActionError(null);
+    try {
+      const response = await fetch(`/api/listings/${listing.id}/favourite`, { method: isFavourited ? "DELETE" : "POST" });
+      if (!response.ok) {
+        const body = (await response.json()) as { error?: string };
+        throw new Error(body.error ?? "Unable to update favourite.");
+      }
+      await refreshFavourites();
+    } catch (caughtError) {
+      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to update favourite.");
+    }
+  }
+
+  const displayedListings = showFavourites ? favourites : listings;
 
   return (
     <main>
@@ -271,6 +302,12 @@ export default function App() {
           {listingActionError && <p role="alert">{listingActionError}</p>}
         </section>
       )}
+      {user && (
+        <div className="favourite-view-toggle">
+          <button type="button" onClick={() => setShowFavourites(false)}>All listings</button>
+          <button type="button" onClick={() => setShowFavourites(true)}>Favourites ({favourites.length})</button>
+        </div>
+      )}
       <section aria-label="Listing filters" className="filters">
         <h2>Find listings</h2>
         <form onSubmit={applyFilters}>
@@ -284,9 +321,9 @@ export default function App() {
       </section>
       {isLoading && <p>Loading listings…</p>}
       {error !== null && <p role="alert">{error}</p>}
-      {!isLoading && error === null && listings.length > 0 && (
-        <section aria-label="Listings">
-          {listings.map((listing) => (
+      {!isLoading && error === null && displayedListings.length > 0 && (
+        <section aria-label={showFavourites ? "Favourites" : "Listings"}>
+          {displayedListings.map((listing) => (
             <article key={listing.id}>
               <h2>{listing.title}</h2>
               <p>{new Intl.NumberFormat("en-NZ", { style: "currency", currency: "NZD" }).format(listing.priceCents / 100)}</p>
@@ -297,11 +334,18 @@ export default function App() {
                   <button type="button" onClick={() => void deleteListing(listing)}>Delete</button>
                 </p>
               )}
+              {user && (
+                <p className="listing-actions">
+                  <button type="button" onClick={() => void toggleFavourite(listing)}>
+                    {favourites.some((favourite) => favourite.id === listing.id) ? "Unfavourite" : "Favourite"}
+                  </button>
+                </p>
+              )}
             </article>
           ))}
         </section>
       )}
-      {!isLoading && error === null && listings.length === 0 && <p>No listings match these filters.</p>}
+      {!isLoading && error === null && displayedListings.length === 0 && <p>{showFavourites ? "You have no favourites yet." : "No listings match these filters."}</p>}
     </main>
   );
 }

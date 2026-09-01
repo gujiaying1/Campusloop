@@ -6,10 +6,13 @@ import prisma from "./prisma.js";
 const testEmail = `auth-test-${Date.now()}@massey.ac.nz`;
 const ownerEmail = `listing-owner-${Date.now()}@massey.ac.nz`;
 const otherEmail = `listing-other-${Date.now()}@massey.ac.nz`;
+const favouriteEmail = `favourite-user-${Date.now()}@massey.ac.nz`;
+const secondFavouriteEmail = `favourite-second-${Date.now()}@massey.ac.nz`;
 const testPassword = "secure-password-123";
-const testEmails = [testEmail, ownerEmail, otherEmail];
+const testEmails = [testEmail, ownerEmail, otherEmail, favouriteEmail, secondFavouriteEmail];
 
 afterAll(async () => {
+  await prisma.favourite.deleteMany({ where: { user: { email: { in: testEmails } } } });
   await prisma.listing.deleteMany({ where: { seller: { email: { in: testEmails } } } });
   await prisma.user.deleteMany({ where: { email: { in: testEmails } } });
   await prisma.$disconnect();
@@ -200,5 +203,42 @@ describe("listing CRUD and ownership", () => {
     expect((await other.agent.delete(`/api/listings/${listingId}`)).status).toBe(403);
     expect((await owner.agent.delete(`/api/listings/${listingId}`)).status).toBe(204);
     expect((await request(app).get(`/api/listings/${listingId}`)).status).toBe(404);
+  });
+});
+
+describe("favourites", () => {
+  async function registerAgent(name: string, email: string) {
+    const agent = request.agent(app);
+    const response = await agent
+      .post("/api/auth/register")
+      .send({ name, email, password: testPassword });
+    expect(response.status).toBe(201);
+    return agent;
+  }
+
+  it("creates independent, idempotent favourites and removes only the current user's favourite", async () => {
+    const target = await prisma.listing.findFirstOrThrow({ where: { title: "IKEA Study Desk" } });
+    const firstUser = await registerAgent("Favourite Student", favouriteEmail);
+    const secondUser = await registerAgent("Second Favourite Student", secondFavouriteEmail);
+
+    expect((await request(app).post(`/api/listings/${target.id}/favourite`)).status).toBe(401);
+    expect((await firstUser.get("/api/favourites")).body).toEqual([]);
+    expect((await firstUser.post("/api/listings/999999999/favourite")).status).toBe(404);
+
+    const firstFavourite = await firstUser.post(`/api/listings/${target.id}/favourite`);
+    expect(firstFavourite.status).toBe(200);
+    expect(await prisma.favourite.count({ where: { user: { email: favouriteEmail }, listingId: target.id } })).toBe(1);
+
+    expect((await firstUser.post(`/api/listings/${target.id}/favourite`)).status).toBe(200);
+    expect(await prisma.favourite.count({ where: { user: { email: favouriteEmail }, listingId: target.id } })).toBe(1);
+
+    const mine = await firstUser.get("/api/favourites");
+    expect(mine.status).toBe(200);
+    expect(mine.body).toEqual(expect.arrayContaining([expect.objectContaining({ id: target.id, seller: expect.any(Object) })]));
+
+    expect((await secondUser.post(`/api/listings/${target.id}/favourite`)).status).toBe(200);
+    expect((await firstUser.delete(`/api/listings/${target.id}/favourite`)).status).toBe(200);
+    expect((await firstUser.get("/api/favourites")).body).toEqual([]);
+    expect((await secondUser.get("/api/favourites")).body).toEqual(expect.arrayContaining([expect.objectContaining({ id: target.id })]));
   });
 });

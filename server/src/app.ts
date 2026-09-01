@@ -197,6 +197,58 @@ app.delete("/api/listings/:id", requireAuth, async (request, response, next) => 
   }
 });
 
+app.post("/api/listings/:id/favourite", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) {
+    response.status(400).json({ error: "Listing id must be a positive integer." });
+    return;
+  }
+
+  try {
+    const listing = await prisma.listing.findUnique({ where: { id }, select: { id: true } });
+    if (!listing) {
+      response.status(404).json({ error: "Listing not found." });
+      return;
+    }
+    await prisma.favourite.upsert({
+      where: { userId_listingId: { userId: request.auth!.userId, listingId: id } },
+      update: {},
+      create: { userId: request.auth!.userId, listingId: id }
+    });
+    response.json({ status: "ok" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete("/api/listings/:id/favourite", requireAuth, async (request, response, next) => {
+  const id = listingId(request.params.id);
+  if (!id) {
+    response.status(400).json({ error: "Listing id must be a positive integer." });
+    return;
+  }
+
+  try {
+    await prisma.favourite.deleteMany({ where: { userId: request.auth!.userId, listingId: id } });
+    response.json({ status: "ok" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/favourites", requireAuth, async (request, response, next) => {
+  try {
+    const favourites = await prisma.favourite.findMany({
+      where: { userId: request.auth!.userId },
+      orderBy: { createdAt: "desc" },
+      select: { listing: { select: listingSelect } }
+    });
+    response.json(favourites.map((favourite) => favourite.listing));
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/auth/register", async (request, response, next) => {
   const parsed = registerSchema.safeParse(request.body);
   if (!parsed.success) {

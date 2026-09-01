@@ -35,6 +35,7 @@ model User {
   passwordHash String?
   createdAt DateTime  @default(now())
   listings  Listing[]
+  favourites Favourite[]
 }
 
 model Listing {
@@ -50,6 +51,17 @@ model Listing {
   sellerId    Int
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  favourites  Favourite[]
 
   @@unique([sellerId, title])
+}
+
+model Favourite {
+  userId    Int
+  listingId Int
+  createdAt DateTime @default(now())
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@id([userId, listingId])
 }
