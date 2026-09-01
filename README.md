@@ -1,18 +1,20 @@
 # CampusLoop
 
-CampusLoop is intended to become a bilingual second-hand marketplace for Massey University students. This repository currently contains only the initial full-stack foundation; authentication, listings, messaging, reservations, reporting, moderation, and all other marketplace features are still future work.
+CampusLoop is intended to become a bilingual second-hand marketplace for Massey University students. This repository currently contains an initial listings vertical slice; authentication, listing creation, messaging, reservations, reporting, moderation, and other marketplace features are still future work.
 
 ## Implemented so far
 
-- React frontend that checks the backend health endpoint on load.
-- Express API with `GET /api/health`, returning `{ "status": "ok" }`.
+- React frontend that loads listings from the API on page load.
+- Express API with `GET /api/health`, returning `{ "status": "ok" }`, and `GET /api/listings`.
+- PostgreSQL and Prisma with User and Listing models plus repeatable demo seed data.
 - Vite proxy for `/api` requests to the backend at port 3001.
 - Vitest and Supertest coverage for the health endpoint.
 
 ## Stack and structure
 
 - `client/`: React, TypeScript, Vite, and native `fetch`.
-- `server/`: Node.js, Express, and TypeScript.
+- `server/`: Node.js, Express, TypeScript, Prisma, and PostgreSQL.
+- `server/prisma/`: Prisma schema and seed script.
 - `server/src/app.test.ts`: Vitest/Supertest API test.
 
 ## Setup
@@ -36,6 +38,16 @@ Run the frontend in another terminal:
 cd client && npm run dev
 ```
 
-The frontend uses `fetch("/api/health")`; Vite forwards this request to `http://localhost:3001` during development.
+Copy `server/.env.example` to `server/.env` and set a valid local `DATABASE_URL` before running database commands.
+
+Create the schema and seed demo data:
+
+```sh
+cd server
+npx prisma migrate dev --name init_user_listing
+npm run db:seed
+```
+
+The frontend uses `fetch("/api/listings")`; Vite forwards this request to `http://localhost:3001` during development.
 
 Build either project with `npm run build` from its folder. Run the backend automated test with `cd server && npm test`.

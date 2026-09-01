@@ -15,3 +15,8 @@ main {
 
 h1 { margin-bottom: 0.5rem; }
 p { color: #475569; }
+
+section { display: grid; gap: 1rem; margin-top: 2rem; text-align: left; }
+article { padding: 1.25rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.5rem; }
+article h2 { margin: 0; font-size: 1.1rem; }
+article p { margin: 0.5rem 0 0; }

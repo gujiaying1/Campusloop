@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ListingCategory {
+  ELECTRONICS
+  FURNITURE
+  TEXTBOOKS
+  CLOTHING
+  HOME_LIVING
+  OTHER
+}
+
+enum ListingCondition {
+  LIKE_NEW
+  GOOD
+  FAIR
+}
+
+enum ListingStatus {
+  AVAILABLE
+  RESERVED
+  SOLD
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  createdAt DateTime  @default(now())
+  listings  Listing[]
+}
+
+model Listing {
+  id          Int              @id @default(autoincrement())
+  title       String
+  description String
+  priceCents  Int
+  category    ListingCategory
+  condition   ListingCondition
+  location    String
+  status      ListingStatus    @default(AVAILABLE)
+  seller      User             @relation(fields: [sellerId], references: [id])
+  sellerId    Int
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([sellerId, title])
+}

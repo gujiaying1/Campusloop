@@ -1,38 +1,58 @@
 import { useEffect, useState } from "react";
 
-type ConnectionState = "loading" | "connected" | "error";
+type Listing = {
+  id: number;
+  title: string;
+  description: string;
+  priceCents: number;
+  category: string;
+  condition: string;
+  location: string;
+  status: string;
+  createdAt: string;
+  seller: { id: number; name: string };
+};
 
 export default function App() {
-  const [connectionState, setConnectionState] = useState<ConnectionState>("loading");
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    async function checkBackend() {
+    async function loadListings() {
       try {
-        const response = await fetch("/api/health");
-        const body: unknown = await response.json();
-
-        if (!response.ok || JSON.stringify(body) !== JSON.stringify({ status: "ok" })) {
-          throw new Error("The backend returned an unexpected response.");
+        const response = await fetch("/api/listings");
+        if (!response.ok) {
+          throw new Error("The server could not load listings.");
         }
-
-        setConnectionState("connected");
-      } catch (error) {
-        console.error(error);
-        setConnectionState("error");
+        setListings((await response.json()) as Listing[]);
+      } catch (caughtError) {
+        console.error(caughtError);
+        setError("Unable to load listings. Please make sure the backend is running and try again.");
+      } finally {
+        setIsLoading(false);
       }
     }
-
-    void checkBackend();
+    void loadListings();
   }, []);
 
   return (
     <main>
       <h1>CampusLoop</h1>
-      {connectionState === "loading" && <p>Connecting to the backend…</p>}
-      {connectionState === "connected" && <p>Backend connected</p>}
-      {connectionState === "error" && (
-        <p role="alert">Unable to connect to the backend. Please make sure it is running and try again.</p>
+      {isLoading && <p>Loading listings…</p>}
+      {error !== null && <p role="alert">{error}</p>}
+      {!isLoading && error === null && listings.length > 0 && (
+        <section aria-label="Listings">
+          {listings.map((listing) => (
+            <article key={listing.id}>
+              <h2>{listing.title}</h2>
+              <p>{new Intl.NumberFormat("en-NZ", { style: "currency", currency: "NZD" }).format(listing.priceCents / 100)}</p>
+              <p>{listing.category.replace(/_/g, " ")} · {listing.condition.replace(/_/g, " ")} · {listing.location}</p>
+            </article>
+          ))}
+        </section>
       )}
+      {!isLoading && error === null && listings.length === 0 && <p>No listings are available yet.</p>}
     </main>
   );
 }

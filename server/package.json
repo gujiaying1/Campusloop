@@ -7,15 +7,23 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:generate": "prisma generate",
+    "db:seed": "prisma db seed"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.1",
+    "dotenv": "^17.4.2",
     "express": "latest"
   },
   "devDependencies": {
     "@types/express": "latest",
     "@types/node": "latest",
     "@types/supertest": "latest",
+    "prisma": "^6.19.1",
     "supertest": "latest",
     "tsx": "latest",
     "typescript": "latest",
