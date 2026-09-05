@@ -84,6 +84,12 @@ describe("GET /api/listings", () => {
       .get("/api/listings?search=desk&category=FURNITURE&condition=GOOD&minPrice=1000&maxPrice=5000");
     expect(combined.status).toBe(200);
     expect(combined.body).toEqual([expect.objectContaining({ title: "IKEA Study Desk" })]);
+
+    const priceAscending = await request(app).get("/api/listings?sort=price_asc");
+    expect(priceAscending.status).toBe(200);
+    expect(priceAscending.body.map((listing: { priceCents: number }) => listing.priceCents)).toEqual(
+      [...priceAscending.body.map((listing: { priceCents: number }) => listing.priceCents)].sort((a, b) => a - b)
+    );
   });
 
   it("returns an empty array for valid filters with no matches", async () => {
@@ -99,6 +105,7 @@ describe("GET /api/listings", () => {
     expect((await request(app).get("/api/listings?minPrice=abc")).status).toBe(400);
     expect((await request(app).get("/api/listings?minPrice=-100")).status).toBe(400);
     expect((await request(app).get("/api/listings?minPrice=5000&maxPrice=1000")).status).toBe(400);
+    expect((await request(app).get("/api/listings?sort=random")).status).toBe(400);
   });
 });
 

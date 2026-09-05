@@ -41,7 +41,8 @@ const listingsQuerySchema = z.object({
   category: z.enum(["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"]).optional(),
   condition: z.enum(["LIKE_NEW", "GOOD", "FAIR"]).optional(),
   minPrice: priceQuerySchema,
-  maxPrice: priceQuerySchema
+  maxPrice: priceQuerySchema,
+  sort: z.enum(["newest", "price_asc", "price_desc"]).optional()
 });
 
 const listingSelect = {
@@ -86,7 +87,7 @@ app.get("/api/listings", async (request, response, next) => {
     response.status(400).json({ error: parsed.error.issues[0]?.message ?? "Invalid listing filters." });
     return;
   }
-  const { search, category, condition, minPrice, maxPrice } = parsed.data;
+  const { search, category, condition, minPrice, maxPrice, sort = "newest" } = parsed.data;
   if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
     response.status(400).json({ error: "Minimum price cannot exceed maximum price." });
     return;
@@ -112,7 +113,7 @@ app.get("/api/listings", async (request, response, next) => {
   try {
     const listings = await prisma.listing.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: sort === "price_asc" ? { priceCents: "asc" } : sort === "price_desc" ? { priceCents: "desc" } : { createdAt: "desc" },
       select: listingSelect
     });
     response.json(listings);

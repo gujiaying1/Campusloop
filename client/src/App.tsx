@@ -17,6 +17,14 @@ type BasicUser = { id: number; name: string; email: string };
 type CurrentUser = BasicUser & { role: "USER" | "ADMIN"; createdAt: string };
 
 type AuthMode = "login" | "register";
+type View =
+  | "marketplace"
+  | "create"
+  | "favourites"
+  | "messages"
+  | "reservations"
+  | "admin";
+type Language = "en" | "zh";
 
 type ListingFilters = {
   search: string;
@@ -24,15 +32,198 @@ type ListingFilters = {
   condition: string;
   minPrice: string;
   maxPrice: string;
+  sort: "newest" | "price_asc" | "price_desc";
 };
 
-type Conversation = { id: number; buyerId: number; sellerId: number; listing: Listing; buyer: BasicUser; seller: BasicUser };
-type Message = { id: number; content: string; createdAt: string; sender: BasicUser };
-type Reservation = { id: number; status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED"; listing: Listing; buyer: BasicUser };
-type Report = { id: number; reason: string; status: "PENDING" | "DISMISSED" | "RESOLVED"; createdAt: string; reporter: BasicUser; listing: Listing };
+type Conversation = {
+  id: number;
+  buyerId: number;
+  sellerId: number;
+  listing: Listing;
+  buyer: BasicUser;
+  seller: BasicUser;
+};
+type Message = {
+  id: number;
+  content: string;
+  createdAt: string;
+  sender: BasicUser;
+};
+type Reservation = {
+  id: number;
+  status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED";
+  listing: Listing;
+  buyer: BasicUser;
+};
+type Report = {
+  id: number;
+  reason: string;
+  status: "PENDING" | "DISMISSED" | "RESOLVED";
+  createdAt: string;
+  reporter: BasicUser;
+  listing: Listing;
+};
 
-const categories = ["ELECTRONICS", "FURNITURE", "TEXTBOOKS", "CLOTHING", "HOME_LIVING", "OTHER"];
+const categories = [
+  "ELECTRONICS",
+  "FURNITURE",
+  "TEXTBOOKS",
+  "CLOTHING",
+  "HOME_LIVING",
+  "OTHER",
+];
 const conditions = ["LIKE_NEW", "GOOD", "FAIR"];
+
+const chinese: Record<string, string> = {
+  Marketplace: "市场",
+  Favourites: "收藏",
+  Messages: "消息",
+  Reservations: "预订",
+  Admin: "管理",
+  "Create listing": "发布商品",
+  "Sign in": "登录",
+  "Join CampusLoop": "加入 CampusLoop",
+  "Log out": "退出登录",
+  "Student marketplace": "校园二手市场",
+  "Good things, close to campus.": "校园好物，就在身边。",
+  "Sign in to save listings, message sellers, and make reservations.":
+    "登录后即可收藏商品、联系卖家并预约。",
+  "Log in": "登录",
+  "Create account": "创建账号",
+  Name: "姓名",
+  "Massey email": "梅西大学邮箱",
+  Password: "密码",
+  "Confirm password": "确认密码",
+  "Campus marketplace": "校园市场",
+  "Find useful things around campus.": "发现校园周边的实用好物。",
+  "Buy, sell and connect with students in your community.":
+    "与校园社区的同学买卖和交流。",
+  Browse: "浏览",
+  "Your saved listings": "已收藏的商品",
+  "Find your next useful thing": "寻找下一件实用好物",
+  "Browse marketplace": "浏览市场",
+  Search: "搜索",
+  "Search listings": "搜索商品",
+  Category: "分类",
+  Condition: "成色",
+  "All categories": "全部分类",
+  "All conditions": "全部成色",
+  "Min NZD": "最低价（NZD）",
+  "Max NZD": "最高价（NZD）",
+  Sort: "排序",
+  Newest: "最新发布",
+  "Price: low to high": "价格：从低到高",
+  "Price: high to low": "价格：从高到低",
+  Reset: "重置",
+  "Saved listings": "已收藏商品",
+  "Fresh around campus": "校园新上架",
+  listing: "件商品",
+  listings: "件商品",
+  Save: "收藏",
+  Edit: "编辑",
+  Delete: "删除",
+  Message: "联系卖家",
+  Reserve: "预约",
+  Report: "举报",
+  "Sign in to interact": "登录后即可操作",
+  "Nothing saved yet": "还没有收藏",
+  "Save listings you like and they will appear here.":
+    "收藏喜欢的商品后，它们会出现在这里。",
+  "No listings match those filters": "没有符合筛选条件的商品",
+  "Try broadening your search or resetting the filters.":
+    "试试扩大搜索范围或重置筛选条件。",
+  "Reset filters": "重置筛选",
+  "Your listing": "你的商品",
+  "Edit listing": "编辑商品",
+  "Create a listing": "发布商品",
+  "Keep the details clear so other students can decide quickly.":
+    "清晰填写商品信息，方便其他同学快速决定。",
+  Title: "标题",
+  Description: "描述",
+  "Price (NZD)": "价格（NZD）",
+  Location: "地点",
+  "Save changes": "保存修改",
+  Cancel: "取消",
+  "Publish listing": "发布商品",
+  Inbox: "收件箱",
+  "No conversations yet": "还没有会话",
+  "Start by messaging a seller from a listing.": "从商品页联系卖家开始吧。",
+  "Select a conversation": "选择一个会话",
+  "Your messages will appear here.": "消息会显示在这里。",
+  "Write a message…": "输入消息…",
+  Send: "发送",
+  "Your activity": "你的动态",
+  "Keep track of items you are buying or selling.":
+    "跟踪你正在购买或出售的商品。",
+  "No reservations yet": "还没有预约",
+  "When you request or receive a reservation, it will show up here.":
+    "当你发起或收到预约时，会显示在这里。",
+  "Cancel request": "取消预约",
+  Accept: "接受",
+  Decline: "拒绝",
+  Administration: "管理",
+  "Moderation queue": "审核队列",
+  "Review reports and take proportionate action.": "查看举报并采取适当处理。",
+  Administrator: "管理员",
+  "No reports to review": "没有待处理的举报",
+  "The moderation queue is currently clear.": "当前审核队列为空。",
+  Dismiss: "忽略",
+  "Remove listing": "下架商品",
+  "Working…": "处理中…",
+  "Report listing": "举报商品",
+  "Tell us what is wrong with this listing. Your report will be reviewed by an administrator.":
+    "请说明该商品的问题，管理员将审核你的举报。",
+  Reason: "原因",
+  "Submitting…": "提交中…",
+  "Submit report": "提交举报",
+  "Loading listings…": "正在加载商品…",
+  "Checking sign-in status…": "正在检查登录状态…",
+  "Report submitted.": "举报已提交。",
+  ELECTRONICS: "电子产品",
+  FURNITURE: "家具",
+  TEXTBOOKS: "教材",
+  CLOTHING: "服饰",
+  HOME_LIVING: "家居用品",
+  OTHER: "其他",
+  "LIKE NEW": "几乎全新",
+  GOOD: "良好",
+  FAIR: "一般",
+  AVAILABLE: "可预约",
+  RESERVED: "已预约",
+  SOLD: "已售出",
+  PENDING: "待处理",
+  ACCEPTED: "已接受",
+  DECLINED: "已拒绝",
+  CANCELLED: "已取消",
+  DISMISSED: "已忽略",
+  RESOLVED: "已处理",
+};
+
+function readable(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en-NZ", {
+    day: "numeric",
+    month: "short",
+  }).format(new Date(value));
+}
+
+function categoryIllustration(category: string) {
+  const illustrations: Record<string, string> = {
+    ELECTRONICS: "🎧",
+    FURNITURE: "🪑",
+    TEXTBOOKS: "📚",
+    CLOTHING: "🎒",
+    HOME_LIVING: "💡",
+    OTHER: "🫖",
+  };
+  return illustrations[category] ?? "🫖";
+}
 
 export default function App() {
   const [listings, setListings] = useState<Listing[]>([]);
@@ -43,21 +234,39 @@ export default function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authError, setAuthError] = useState<string | null>(null);
   const [editingListing, setEditingListing] = useState<Listing | null>(null);
-  const [listingActionError, setListingActionError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<ListingFilters>({ search: "", category: "", condition: "", minPrice: "", maxPrice: "" });
+  const [listingActionError, setListingActionError] = useState<string | null>(
+    null,
+  );
+  const [filters, setFilters] = useState<ListingFilters>({
+    search: "",
+    category: "",
+    condition: "",
+    minPrice: "",
+    maxPrice: "",
+    sort: "newest",
+  });
+  const [language, setLanguage] = useState<Language>(() =>
+    localStorage.getItem("campusloop-language") === "zh" ? "zh" : "en",
+  );
   const [favourites, setFavourites] = useState<Listing[]>([]);
   const [showFavourites, setShowFavourites] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] =
+    useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [reportingListing, setReportingListing] = useState<Listing | null>(null);
+  const [reportingListing, setReportingListing] = useState<Listing | null>(
+    null,
+  );
   const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
-  const [showAdmin, setShowAdmin] = useState(false);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [isModerating, setIsModerating] = useState(false);
+  const [activeView, setActiveView] = useState<View>("marketplace");
+  const [showAuth, setShowAuth] = useState(false);
+  const t = (value: string) =>
+    language === "zh" ? (chinese[value] ?? value) : value;
 
   function listingsUrl(activeFilters: ListingFilters) {
     const params = new URLSearchParams();
@@ -65,14 +274,19 @@ export default function App() {
       if (!value.trim()) return;
       const dollars = Number(value);
       if (!Number.isFinite(dollars) || dollars < 0) {
-        throw new Error(`${name === "minPrice" ? "Minimum" : "Maximum"} price must be a non-negative NZD amount.`);
+        throw new Error(
+          `${name === "minPrice" ? "Minimum" : "Maximum"} price must be a non-negative NZD amount.`,
+        );
       }
       params.set(name, String(Math.round(dollars * 100)));
     };
 
-    if (activeFilters.search.trim()) params.set("search", activeFilters.search.trim());
+    if (activeFilters.search.trim())
+      params.set("search", activeFilters.search.trim());
     if (activeFilters.category) params.set("category", activeFilters.category);
-    if (activeFilters.condition) params.set("condition", activeFilters.condition);
+    if (activeFilters.condition)
+      params.set("condition", activeFilters.condition);
+    if (activeFilters.sort !== "newest") params.set("sort", activeFilters.sort);
     addPrice(activeFilters.minPrice, "minPrice");
     addPrice(activeFilters.maxPrice, "maxPrice");
 
@@ -112,17 +326,33 @@ export default function App() {
     setReports((await response.json()) as Report[]);
   }
   async function loadReports() {
-    try { await refreshReports(); } catch (caughtError) { setReportFeedback(caughtError instanceof Error ? caughtError.message : "Unable to load reports."); }
+    try {
+      await refreshReports();
+    } catch (caughtError) {
+      setReportFeedback(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to load reports.",
+      );
+    }
   }
 
   async function loadMessages(conversation: Conversation) {
     try {
-      const response = await fetch(`/api/conversations/${conversation.id}/messages`);
+      const response = await fetch(
+        `/api/conversations/${conversation.id}/messages`,
+      );
       if (!response.ok) throw new Error("Unable to load messages.");
       setSelectedConversation(conversation);
       setMessages((await response.json()) as Message[]);
       setMessageError(null);
-    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to load messages."); }
+    } catch (caughtError) {
+      setMessageError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to load messages.",
+      );
+    }
   }
 
   useEffect(() => {
@@ -131,7 +361,9 @@ export default function App() {
         await refreshListings();
       } catch (caughtError) {
         console.error(caughtError);
-        setError("Unable to load listings. Please make sure the backend is running and try again.");
+        setError(
+          "Unable to load listings. Please make sure the backend is running and try again.",
+        );
       } finally {
         setIsLoading(false);
       }
@@ -167,7 +399,11 @@ export default function App() {
     const confirmPassword = String(data.get("confirmPassword") ?? "");
 
     setAuthError(null);
-    if (!email || !password || (authMode === "register" && !String(data.get("name") ?? "").trim())) {
+    if (
+      !email ||
+      !password ||
+      (authMode === "register" && !String(data.get("name") ?? "").trim())
+    ) {
       setAuthError("Please complete all required fields.");
       return;
     }
@@ -176,25 +412,37 @@ export default function App() {
       return;
     }
 
-    const payload = authMode === "register"
-      ? { name: String(data.get("name")).trim(), email, password }
-      : { email, password };
+    const payload =
+      authMode === "register"
+        ? { name: String(data.get("name")).trim(), email, password }
+        : { email, password };
 
     try {
-      const response = await fetch(`/api/auth/${authMode === "register" ? "register" : "login"}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const body = (await response.json()) as { user?: CurrentUser; error?: string };
-      if (!response.ok || !body.user) throw new Error(body.error ?? "Unable to sign in.");
+      const response = await fetch(
+        `/api/auth/${authMode === "register" ? "register" : "login"}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      const body = (await response.json()) as {
+        user?: CurrentUser;
+        error?: string;
+      };
+      if (!response.ok || !body.user)
+        throw new Error(body.error ?? "Unable to sign in.");
       setUser(body.user);
       await refreshFavourites();
       await refreshConversations();
       await refreshReservations();
       event.currentTarget.reset();
     } catch (caughtError) {
-      setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to sign in.");
+      setAuthError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to sign in.",
+      );
     }
   }
 
@@ -211,7 +459,11 @@ export default function App() {
       setMessages([]);
       setReservations([]);
     } catch (caughtError) {
-      setAuthError(caughtError instanceof Error ? caughtError.message : "Unable to log out.");
+      setAuthError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to log out.",
+      );
     }
   }
 
@@ -233,24 +485,31 @@ export default function App() {
       priceCents,
       category: String(data.get("category") ?? ""),
       condition: String(data.get("condition") ?? ""),
-      location: String(data.get("location") ?? "").trim()
+      location: String(data.get("location") ?? "").trim(),
     };
-    const endpoint = editingListing ? `/api/listings/${editingListing.id}` : "/api/listings";
+    const endpoint = editingListing
+      ? `/api/listings/${editingListing.id}`
+      : "/api/listings";
 
     try {
       const response = await fetch(endpoint, {
         method: editingListing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Unable to save the listing.");
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to save the listing.");
       await refreshListings();
       if (user) await refreshFavourites();
       setEditingListing(null);
       event.currentTarget.reset();
     } catch (caughtError) {
-      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to save the listing.");
+      setListingActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to save the listing.",
+      );
     }
   }
 
@@ -258,7 +517,9 @@ export default function App() {
     if (!window.confirm(`Delete “${listing.title}”?`)) return;
     setListingActionError(null);
     try {
-      const response = await fetch(`/api/listings/${listing.id}`, { method: "DELETE" });
+      const response = await fetch(`/api/listings/${listing.id}`, {
+        method: "DELETE",
+      });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? "Unable to delete the listing.");
@@ -267,7 +528,11 @@ export default function App() {
       if (user) await refreshFavourites();
       if (editingListing?.id === listing.id) setEditingListing(null);
     } catch (caughtError) {
-      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to delete the listing.");
+      setListingActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to delete the listing.",
+      );
     }
   }
 
@@ -277,48 +542,82 @@ export default function App() {
     try {
       await refreshListings(filters);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Unable to filter listings.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to filter listings.",
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
   async function clearFilters() {
-    const clearedFilters = { search: "", category: "", condition: "", minPrice: "", maxPrice: "" };
+    const clearedFilters = {
+      search: "",
+      category: "",
+      condition: "",
+      minPrice: "",
+      maxPrice: "",
+      sort: "newest" as const,
+    };
     setFilters(clearedFilters);
     setIsLoading(true);
     try {
       await refreshListings(clearedFilters);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Unable to load listings.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to load listings.",
+      );
     } finally {
       setIsLoading(false);
     }
   }
 
   async function toggleFavourite(listing: Listing) {
-    const isFavourited = favourites.some((favourite) => favourite.id === listing.id);
+    const isFavourited = favourites.some(
+      (favourite) => favourite.id === listing.id,
+    );
     setListingActionError(null);
     try {
-      const response = await fetch(`/api/listings/${listing.id}/favourite`, { method: isFavourited ? "DELETE" : "POST" });
+      const response = await fetch(`/api/listings/${listing.id}/favourite`, {
+        method: isFavourited ? "DELETE" : "POST",
+      });
       if (!response.ok) {
         const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? "Unable to update favourite.");
       }
       await refreshFavourites();
     } catch (caughtError) {
-      setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to update favourite.");
+      setListingActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to update favourite.",
+      );
     }
   }
 
   async function startConversation(listing: Listing) {
     try {
-      const response = await fetch(`/api/listings/${listing.id}/conversations`, { method: "POST" });
+      const response = await fetch(
+        `/api/listings/${listing.id}/conversations`,
+        { method: "POST" },
+      );
       const body = (await response.json()) as Conversation & { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Unable to start conversation.");
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to start conversation.");
       await refreshConversations();
+      setActiveView("messages");
       await loadMessages(body);
-    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to start conversation."); }
+    } catch (caughtError) {
+      setMessageError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to start conversation.",
+      );
+    }
   }
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
@@ -327,135 +626,1009 @@ export default function App() {
     const form = event.currentTarget;
     const content = String(new FormData(form).get("content") ?? "");
     try {
-      const response = await fetch(`/api/conversations/${selectedConversation.id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content }) });
+      const response = await fetch(
+        `/api/conversations/${selectedConversation.id}/messages`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content }),
+        },
+      );
       const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Unable to send message.");
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to send message.");
       form.reset();
       await loadMessages(selectedConversation);
       await refreshConversations();
-    } catch (caughtError) { setMessageError(caughtError instanceof Error ? caughtError.message : "Unable to send message."); }
+    } catch (caughtError) {
+      setMessageError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to send message.",
+      );
+    }
   }
   async function reservationAction(url: string) {
-    try { const response = await fetch(url, { method: "POST" }); const body = (await response.json()) as { error?: string }; if (!response.ok) throw new Error(body.error ?? "Unable to update reservation."); await refreshReservations(); await refreshListings(); }
-    catch (caughtError) { setListingActionError(caughtError instanceof Error ? caughtError.message : "Unable to update reservation."); }
+    try {
+      const response = await fetch(url, { method: "POST" });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to update reservation.");
+      await refreshReservations();
+      await refreshListings();
+    } catch (caughtError) {
+      setListingActionError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to update reservation.",
+      );
+    }
   }
   async function submitReport(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!reportingListing || isSubmittingReport) return;
-    const reason = String(new FormData(event.currentTarget).get("reason") ?? "");
-    setIsSubmittingReport(true); try { const response = await fetch(`/api/listings/${reportingListing.id}/reports`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) }); const body = (await response.json()) as { error?: string }; if (!response.ok) throw new Error(body.error ?? "Unable to submit report."); setReportFeedback("Report submitted."); setReportingListing(null); }
-    catch (caughtError) { setReportFeedback(caughtError instanceof Error ? caughtError.message : "Unable to submit report."); } finally { setIsSubmittingReport(false); }
+    event.preventDefault();
+    if (!reportingListing || isSubmittingReport) return;
+    const reason = String(
+      new FormData(event.currentTarget).get("reason") ?? "",
+    );
+    setIsSubmittingReport(true);
+    try {
+      const response = await fetch(
+        `/api/listings/${reportingListing.id}/reports`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        },
+      );
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok)
+        throw new Error(body.error ?? "Unable to submit report.");
+      setReportFeedback("Report submitted.");
+      setReportingListing(null);
+    } catch (caughtError) {
+      setReportFeedback(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Unable to submit report.",
+      );
+    } finally {
+      setIsSubmittingReport(false);
+    }
   }
   async function adminAction(url: string, refreshListingsAfter = false) {
-    if (isModerating) return; setIsModerating(true); try { const response = await fetch(url, { method: "POST" }); const body = (await response.json()) as { error?: string }; if (!response.ok) throw new Error(body.error ?? "Moderation action failed."); await loadReports(); if (refreshListingsAfter) { await refreshListings(); await refreshFavourites(); } }
-    catch (caughtError) { setReportFeedback(caughtError instanceof Error ? caughtError.message : "Moderation action failed."); } finally { setIsModerating(false); }
+    if (isModerating) return;
+    setIsModerating(true);
+    try {
+      const response = await fetch(url, { method: "POST" });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok)
+        throw new Error(body.error ?? "Moderation action failed.");
+      await loadReports();
+      if (refreshListingsAfter) {
+        await refreshListings();
+        await refreshFavourites();
+      }
+    } catch (caughtError) {
+      setReportFeedback(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Moderation action failed.",
+      );
+    } finally {
+      setIsModerating(false);
+    }
   }
 
   const displayedListings = showFavourites ? favourites : listings;
+  const setView = (view: View) => {
+    setActiveView(view);
+    setShowFavourites(view === "favourites");
+    if (view === "admin") void loadReports();
+  };
+  const viewTitle = showFavourites
+    ? t("Saved listings")
+    : t("Fresh around campus");
+  const changeLanguage = (nextLanguage: Language) => {
+    setLanguage(nextLanguage);
+    localStorage.setItem("campusloop-language", nextLanguage);
+  };
 
   return (
-    <main>
-      <h1>CampusLoop</h1>
-      <section aria-label="Authentication" className="auth-panel">
-        {authLoading && <p>Checking sign-in status…</p>}
-        {!authLoading && user && (
-          <p>Signed in as <strong>{user.name}</strong> ({user.email}) <button type="button" onClick={logout}>Log out</button></p>
-        )}
-        {!authLoading && !user && (
-          <>
-            <div className="auth-switch">
-              <button type="button" onClick={() => { setAuthMode("login"); setAuthError(null); }}>Log in</button>
-              <button type="button" onClick={() => { setAuthMode("register"); setAuthError(null); }}>Register</button>
+    <>
+      <header className="site-header">
+        <div className="nav-shell">
+          <button
+            className="brand"
+            type="button"
+            onClick={() => setView("marketplace")}
+          >
+            Campus<span>Loop</span>
+          </button>
+          <nav aria-label="Primary navigation">
+            <button
+              className={
+                activeView === "marketplace" ? "nav-link is-active" : "nav-link"
+              }
+              onClick={() => setView("marketplace")}
+            >
+              {t("Marketplace")}
+            </button>
+            {user && (
+              <>
+                <button
+                  className={
+                    activeView === "favourites"
+                      ? "nav-link is-active"
+                      : "nav-link"
+                  }
+                  onClick={() => setView("favourites")}
+                >
+                  {t("Favourites")} <small>{favourites.length}</small>
+                </button>
+                <button
+                  className={
+                    activeView === "messages"
+                      ? "nav-link is-active"
+                      : "nav-link"
+                  }
+                  onClick={() => setView("messages")}
+                >
+                  {t("Messages")}
+                </button>
+                <button
+                  className={
+                    activeView === "reservations"
+                      ? "nav-link is-active"
+                      : "nav-link"
+                  }
+                  onClick={() => setView("reservations")}
+                >
+                  {t("Reservations")}
+                </button>
+              </>
+            )}
+          </nav>
+          <div className="nav-actions">
+            <div
+              className="language-toggle"
+              aria-label="Language"
+              style={{ display: "flex", border: "1px solid #dcd7cf", borderRadius: 8, overflow: "hidden" }}
+            >
+              <button
+                type="button"
+                className={language === "en" ? "is-active" : ""}
+                onClick={() => changeLanguage("en")}
+                style={{ border: 0, padding: "6px 7px", background: language === "en" ? "#e8f4ef" : "#fff" }}
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                className={language === "zh" ? "is-active" : ""}
+                onClick={() => changeLanguage("zh")}
+                style={{ border: 0, borderLeft: "1px solid #dcd7cf", padding: "6px 7px", background: language === "zh" ? "#e8f4ef" : "#fff" }}
+              >
+                中文
+              </button>
             </div>
-            <form onSubmit={submitAuth}>
-              {authMode === "register" && <label>Name <input name="name" autoComplete="name" /></label>}
-              <label>Massey email <input name="email" type="email" autoComplete="email" /></label>
-              <label>Password <input name="password" type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} /></label>
-              {authMode === "register" && <label>Confirm password <input name="confirmPassword" type="password" autoComplete="new-password" /></label>}
-              <button type="submit">{authMode === "login" ? "Log in" : "Create account"}</button>
-            </form>
+            {user ? (
+              <>
+                <button
+                  className="button button-primary"
+                  onClick={() => {
+                    setEditingListing(null);
+                    setView("create");
+                  }}
+                >
+                  {t("Create listing")}
+                </button>
+                {user.role === "ADMIN" && (
+                  <button
+                    className={
+                      activeView === "admin"
+                        ? "admin-button is-active"
+                        : "admin-button"
+                    }
+                    onClick={() => setView("admin")}
+                  >
+                    {t("Admin")}
+                  </button>
+                )}
+                <button
+                  className="profile-button"
+                  onClick={logout}
+                  title={`${t("Log out")} ${user.email}`}
+                >
+                  {user.name}
+                  <span>{t("Log out")}</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  className="nav-sign-in"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setShowAuth(true);
+                  }}
+                >
+                  {t("Sign in")}
+                </button>
+                <button
+                  className="button button-primary"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setShowAuth(true);
+                  }}
+                >
+                  {t("Join CampusLoop")}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+      <main className="app-shell">
+        {!user && showAuth && (
+          <section
+            id="auth"
+            aria-label="Authentication"
+            className="auth-panel surface-card"
+          >
+            <div className="auth-copy">
+              <p className="eyebrow">{t("Student marketplace")}</p>
+              <h1>{t("Good things, close to campus.")}</h1>
+              <p>{t("Sign in to save listings, message sellers, and make reservations.")}</p>
+            </div>
+            {authLoading && <p>{t("Checking sign-in status…")}</p>}
+            {!authLoading && (
+              <>
+                <div className="auth-switch">
+                  <button
+                    className={authMode === "login" ? "is-selected" : ""}
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("login");
+                      setAuthError(null);
+                    }}
+                  >
+                    {t("Log in")}
+                  </button>
+                  <button
+                    className={authMode === "register" ? "is-selected" : ""}
+                    type="button"
+                    onClick={() => {
+                      setAuthMode("register");
+                      setAuthError(null);
+                    }}
+                  >
+                    {t("Create account")}
+                  </button>
+                </div>
+                <form onSubmit={submitAuth}>
+                  {authMode === "register" && (
+                    <label>
+                      {t("Name")} <input name="name" autoComplete="name" />
+                    </label>
+                  )}
+                  <label>
+                    {t("Massey email")}{" "}
+                    <input name="email" type="email" autoComplete="email" />
+                  </label>
+                  <label>
+                    {t("Password")}{" "}
+                    <input
+                      name="password"
+                      type="password"
+                      autoComplete={
+                        authMode === "login"
+                          ? "current-password"
+                          : "new-password"
+                      }
+                    />
+                  </label>
+                  {authMode === "register" && (
+                    <label>
+                      {t("Confirm password")}{" "}
+                      <input
+                        name="confirmPassword"
+                        type="password"
+                        autoComplete="new-password"
+                      />
+                    </label>
+                  )}
+                  <button className="button button-primary" type="submit">
+                    {authMode === "login" ? t("Log in") : t("Create account")}
+                  </button>
+                </form>
+              </>
+            )}
+            {authError && (
+              <p className="notice notice-error" role="alert">
+                {authError}
+              </p>
+            )}
+          </section>
+        )}
+
+        {(activeView === "marketplace" || activeView === "favourites") && (
+          <>
+            <section className="market-hero">
+              <div>
+                <p className="eyebrow">{t("Campus marketplace")}</p>
+                <h1>{t("Find useful things around campus.")}</h1>
+                <p>{t("Buy, sell and connect with students in your community.")}</p>
+              </div>
+            </section>
+            <section aria-label="Listing filters" className="filters">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">{t("Browse")}</p>
+                  <h2>
+                    {activeView === "favourites"
+                      ? t("Your saved listings")
+                      : t("Find your next useful thing")}
+                  </h2>
+                </div>
+                {activeView === "favourites" && (
+                  <button
+                    className="button button-secondary"
+                    onClick={() => setView("marketplace")}
+                  >
+                    {t("Browse marketplace")}
+                  </button>
+                )}
+              </div>
+              <form onSubmit={applyFilters}>
+                <label className="search-field">
+                  <span>{t("Search")}</span>
+                  <input
+                    value={filters.search}
+                    onChange={(event) =>
+                      setFilters({ ...filters, search: event.target.value })
+                    }
+                    placeholder={t("Search listings")}
+                  />
+                </label>
+                <label>
+                  {t("Category")}
+                  <select
+                    value={filters.category}
+                    onChange={(event) =>
+                      setFilters({ ...filters, category: event.target.value })
+                    }
+                  >
+                    <option value="">{t("All categories")}</option>
+                    {categories.map((category) => (
+                      <option key={category}>{t(readable(category))}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t("Condition")}
+                  <select
+                    value={filters.condition}
+                    onChange={(event) =>
+                      setFilters({ ...filters, condition: event.target.value })
+                    }
+                  >
+                    <option value="">{t("All conditions")}</option>
+                    {conditions.map((condition) => (
+                      <option key={condition}>{t(readable(condition))}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  {t("Sort")}
+                  <select value={filters.sort} onChange={(event) => setFilters({ ...filters, sort: event.target.value as ListingFilters["sort"] })}>
+                    <option value="newest">{t("Newest")}</option>
+                    <option value="price_asc">{t("Price: low to high")}</option>
+                    <option value="price_desc">{t("Price: high to low")}</option>
+                  </select>
+                </label>
+                <div className="price-fields">
+                  <label>
+                    {t("Min NZD")}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={filters.minPrice}
+                      onChange={(event) =>
+                        setFilters({ ...filters, minPrice: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label>
+                    {t("Max NZD")}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={filters.maxPrice}
+                      onChange={(event) =>
+                        setFilters({ ...filters, maxPrice: event.target.value })
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="filter-actions">
+                  <button className="button button-primary" type="submit">
+                    {t("Search")}
+                  </button>
+                  <button
+                    className="button button-quiet"
+                    type="button"
+                    onClick={() => void clearFilters()}
+                  >
+                    {t("Reset")}
+                  </button>
+                </div>
+              </form>
+            </section>
+            {isLoading && <p className="state-card">{t("Loading listings…")}</p>}
+            {error && (
+              <p className="notice notice-error" role="alert">
+                {error}
+              </p>
+            )}
+            {!isLoading && !error && (
+              <section className="listing-section">
+                <div className="section-heading">
+                  <h2>{viewTitle}</h2>
+                  <span className="result-count">
+                    {displayedListings.length}{" "}
+                    {t(displayedListings.length === 1 ? "listing" : "listings")}
+                  </span>
+                </div>
+                {displayedListings.length > 0 ? (
+                  <div className="listing-grid">
+                    {displayedListings.map((listing) => (
+                      <article className="listing-card" key={listing.id}>
+                        <div
+                          className={`listing-media category-${listing.category.toLowerCase()}`}
+                        >
+                          <span
+                            className="listing-illustration"
+                            role="img"
+                            aria-label={readable(listing.category)}
+                          >
+                            {categoryIllustration(listing.category)}
+                          </span>
+                          {user && (
+                            <button
+                              className={
+                                favourites.some(
+                                  (favourite) => favourite.id === listing.id,
+                                )
+                                  ? "favourite-button is-saved"
+                                  : "favourite-button"
+                              }
+                              aria-label={
+                                favourites.some(
+                                  (favourite) => favourite.id === listing.id,
+                                )
+                                  ? "Remove from favourites"
+                                  : "Add to favourites"
+                              }
+                              onClick={() => void toggleFavourite(listing)}
+                            >
+                              {t("Save")}
+                            </button>
+                          )}
+                        </div>
+                        <div className="listing-card-body">
+                          <div className="listing-card-topline">
+                            <span className="metadata">
+                              {t(readable(listing.category))} ·{" "}
+                              {t(readable(listing.condition))}
+                            </span>
+                            <span className="metadata">{listing.location}</span>
+                          </div>
+                          <h3>{listing.title}</h3>
+                          <p className="price">
+                            {new Intl.NumberFormat("en-NZ", {
+                              style: "currency",
+                              currency: "NZD",
+                            }).format(listing.priceCents / 100)}
+                          </p>
+                          <p className="seller-line">
+                            {language === "zh" ? "发布者：" : "Listed by "}{listing.seller.name}
+                          </p>
+                          <div className="card-actions">
+                            {user?.id === listing.seller.id ? (
+                              <>
+                                <button
+                                  className="button button-secondary"
+                                  onClick={() => {
+                                    setEditingListing(listing);
+                                    setListingActionError(null);
+                                    setView("create");
+                                  }}
+                                >
+                                  {t("Edit")}
+                                </button>
+                                <button
+                                  className="text-button danger"
+                                  onClick={() => void deleteListing(listing)}
+                                >
+                                  {t("Delete")}
+                                </button>
+                              </>
+                            ) : user ? (
+                              <>
+                                <button
+                                  className="button button-primary"
+                                  onClick={() =>
+                                    void startConversation(listing)
+                                  }
+                                >
+                                  {t("Message")}
+                                </button>
+                                {listing.status === "AVAILABLE" && (
+                                  <button
+                                    className="button button-secondary"
+                                    onClick={() =>
+                                      void reservationAction(
+                                        `/api/listings/${listing.id}/reservations`,
+                                      )
+                                    }
+                                  >
+                                    {t("Reserve")}
+                                  </button>
+                                )}
+                                <button
+                                  className="text-button"
+                                  onClick={() => {
+                                    setReportingListing(listing);
+                                    setReportFeedback(null);
+                                  }}
+                                >
+                                  {t("Report")}
+                                </button>
+                              </>
+                            ) : (
+                              <span className="metadata">
+                                {t("Sign in to interact")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <h3>
+                      {activeView === "favourites"
+                        ? t("Nothing saved yet")
+                        : t("No listings match those filters")}
+                    </h3>
+                    <p>
+                      {activeView === "favourites"
+                        ? t("Save listings you like and they will appear here.")
+                        : t("Try broadening your search or resetting the filters.")}
+                    </p>
+                    {activeView === "favourites" ? (
+                      <button
+                        className="button button-primary"
+                        onClick={() => setView("marketplace")}
+                      >
+                        {t("Browse marketplace")}
+                      </button>
+                    ) : (
+                      <button
+                        className="button button-secondary"
+                        onClick={() => void clearFilters()}
+                      >
+                        {t("Reset filters")}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
           </>
         )}
-        {authError && <p role="alert">{authError}</p>}
-      </section>
-      {user && (
-        <section aria-label="Manage listings" className="listing-form">
-          <h2>{editingListing ? "Edit listing" : "Create listing"}</h2>
-          <form key={editingListing?.id ?? "new"} onSubmit={submitListing}>
-            <label>Title <input name="title" required defaultValue={editingListing?.title ?? ""} /></label>
-            <label>Description <textarea name="description" required defaultValue={editingListing?.description ?? ""} /></label>
-            <label>Price (NZD) <input name="price" type="number" min="0.01" step="0.01" required defaultValue={editingListing ? (editingListing.priceCents / 100).toFixed(2) : ""} /></label>
-            <label>Category <select name="category" defaultValue={editingListing?.category ?? "OTHER"}>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
-            <label>Condition <select name="condition" defaultValue={editingListing?.condition ?? "GOOD"}>{conditions.map((condition) => <option key={condition}>{condition}</option>)}</select></label>
-            <label>Location <input name="location" required defaultValue={editingListing?.location ?? ""} /></label>
-            <div className="listing-form-actions">
-              <button type="submit">{editingListing ? "Save changes" : "Create listing"}</button>
-              {editingListing && <button type="button" onClick={() => setEditingListing(null)}>Cancel</button>}
+
+        {user && activeView === "create" && (
+          <section
+            aria-label="Manage listings"
+            className="listing-form surface-card"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">{t("Your listing")}</p>
+                <h1>{editingListing ? t("Edit listing") : t("Create a listing")}</h1>
+                <p>{t("Keep the details clear so other students can decide quickly.")}</p>
+              </div>
             </div>
-          </form>
-          {listingActionError && <p role="alert">{listingActionError}</p>}
-        </section>
-      )}
-      {user?.role === "ADMIN" && <div className="favourite-view-toggle"><button type="button" onClick={() => { setShowAdmin(!showAdmin); if (!showAdmin) void loadReports(); }}>Admin moderation</button></div>}
-      {user?.role === "ADMIN" && showAdmin && <section aria-label="Admin moderation" className="messages-panel"><h2>Moderation</h2>{reports.map((report) => <article key={report.id}><strong>{report.status}</strong><p>{report.reason}</p><p>{report.listing.title} — reported by {report.reporter.name} ({report.reporter.email})</p>{report.status === "PENDING" && <p className="listing-actions"><button disabled={isModerating} type="button" onClick={() => void adminAction(`/api/admin/reports/${report.id}/dismiss`)}>{isModerating ? "Working..." : "Dismiss"}</button><button disabled={isModerating} type="button" onClick={() => void adminAction(`/api/admin/reports/${report.id}/remove-listing`, true)}>Remove Listing</button></p>}</article>)}</section>}
-      {user && <section aria-label="Reservations" className="messages-panel"><h2>Reservations</h2>{reservations.length === 0 ? <p>No reservations yet.</p> : reservations.map((reservation) => <div key={reservation.id}><strong>{reservation.listing.title}</strong> — {reservation.status} {reservation.buyer.id === user.id && reservation.status === "PENDING" && <button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/cancel`)}>Cancel</button>} {reservation.listing.seller.id === user.id && reservation.status === "PENDING" && <><button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/accept`)}>Accept</button><button type="button" onClick={() => void reservationAction(`/api/reservations/${reservation.id}/decline`)}>Decline</button></>}</div>)}</section>}
-      {user && (
-        <div className="favourite-view-toggle">
-          <button type="button" onClick={() => setShowFavourites(false)}>All listings</button>
-          <button type="button" onClick={() => setShowFavourites(true)}>Favourites ({favourites.length})</button>
-        </div>
-      )}
-      {user && (
-        <section aria-label="Messages" className="messages-panel">
-          <h2>Messages</h2>
-          <div className="conversation-list">{conversations.length === 0 ? <p>No conversations yet.</p> : conversations.map((conversation) => <button key={conversation.id} type="button" onClick={() => void loadMessages(conversation)}>{conversation.listing.title} — {conversation.buyerId === user.id ? conversation.seller.name : conversation.buyer.name}</button>)}</div>
-          {selectedConversation && <div className="message-thread"><h3>{selectedConversation.listing.title}</h3>{messages.map((message) => <p key={message.id}><strong>{message.sender.name}:</strong> {message.content}</p>)}<form onSubmit={sendMessage}><label>Message <textarea name="content" required /></label><button type="submit">Send</button></form></div>}
-          {messageError && <p role="alert">{messageError}</p>}
-        </section>
-      )}
-      <section aria-label="Listing filters" className="filters">
-        <h2>Find listings</h2>
-        <form onSubmit={applyFilters}>
-          <label>Keyword <input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search title or description" /></label>
-          <label>Category <select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}><option value="">All categories</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></label>
-          <label>Condition <select value={filters.condition} onChange={(event) => setFilters({ ...filters, condition: event.target.value })}><option value="">All conditions</option>{conditions.map((condition) => <option key={condition}>{condition}</option>)}</select></label>
-          <label>Minimum price (NZD) <input type="number" min="0" step="0.01" value={filters.minPrice} onChange={(event) => setFilters({ ...filters, minPrice: event.target.value })} /></label>
-          <label>Maximum price (NZD) <input type="number" min="0" step="0.01" value={filters.maxPrice} onChange={(event) => setFilters({ ...filters, maxPrice: event.target.value })} /></label>
-          <div className="filter-actions"><button type="submit">Apply filters</button><button type="button" onClick={() => void clearFilters()}>Clear filters</button></div>
-        </form>
-      </section>
-      {isLoading && <p>Loading listings…</p>}
-      {error !== null && <p role="alert">{error}</p>}
-      {!isLoading && error === null && displayedListings.length > 0 && (
-        <section aria-label={showFavourites ? "Favourites" : "Listings"}>
-          {displayedListings.map((listing) => (
-            <article key={listing.id}>
-              <h2>{listing.title}</h2>
-              <p>{new Intl.NumberFormat("en-NZ", { style: "currency", currency: "NZD" }).format(listing.priceCents / 100)}</p>
-              <p>{listing.category.replace(/_/g, " ")} · {listing.condition.replace(/_/g, " ")} · {listing.location}</p>
-              {user?.id === listing.seller.id && (
-                <p className="listing-actions">
-                  <button type="button" onClick={() => { setEditingListing(listing); setListingActionError(null); }}>Edit</button>
-                  <button type="button" onClick={() => void deleteListing(listing)}>Delete</button>
-                </p>
-              )}
-              {user && (
-                <p className="listing-actions">
-                  <button type="button" onClick={() => void toggleFavourite(listing)}>
-                    {favourites.some((favourite) => favourite.id === listing.id) ? "Unfavourite" : "Favourite"}
-                  </button>
-                </p>
-              )}
-              {user && user.id !== listing.seller.id && <p className="listing-actions"><button type="button" onClick={() => void startConversation(listing)}>Message seller</button></p>}
-              {user && user.id !== listing.seller.id && <p className="listing-actions"><button type="button" onClick={() => { setReportingListing(listing); setReportFeedback(null); }}>Report</button></p>}
-              {user && user.id !== listing.seller.id && listing.status === "AVAILABLE" && <p className="listing-actions"><button type="button" onClick={() => void reservationAction(`/api/listings/${listing.id}/reservations`)}>Request reservation</button></p>}
-              {user && user.id === listing.seller.id && listing.status === "RESERVED" && <p className="listing-actions"><button type="button" onClick={() => void reservationAction(`/api/listings/${listing.id}/sold`)}>Mark sold</button></p>}
-            </article>
-          ))}
-        </section>
-      )}
-      {reportingListing && <section aria-label="Report listing" className="messages-panel"><h2>Report {reportingListing.title}</h2><form onSubmit={submitReport}><label>Reason <textarea name="reason" required /></label><button disabled={isSubmittingReport} type="submit">{isSubmittingReport ? "Submitting..." : "Submit Report"}</button><button disabled={isSubmittingReport} type="button" onClick={() => setReportingListing(null)}>Cancel</button></form></section>}
-      {reportFeedback && <p role="status">{reportFeedback}</p>}
-      {!isLoading && error === null && displayedListings.length === 0 && <p>{showFavourites ? "You have no favourites yet." : "No listings match these filters."}</p>}
-    </main>
+            <form key={editingListing?.id ?? "new"} onSubmit={submitListing}>
+              <label className="form-wide">
+                {t("Title")}
+                <input
+                  name="title"
+                  required
+                  defaultValue={editingListing?.title ?? ""}
+                />
+              </label>
+              <label className="form-wide">
+                {t("Description")}
+                <textarea
+                  name="description"
+                  required
+                  defaultValue={editingListing?.description ?? ""}
+                />
+              </label>
+              <label>
+                {t("Price (NZD)")}
+                <input
+                  name="price"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  required
+                  defaultValue={
+                    editingListing
+                      ? (editingListing.priceCents / 100).toFixed(2)
+                      : ""
+                  }
+                />
+              </label>
+              <label>
+                {t("Location")}
+                <input
+                  name="location"
+                  required
+                  defaultValue={editingListing?.location ?? ""}
+                />
+              </label>
+              <label>
+                {t("Category")}
+                <select
+                  name="category"
+                  defaultValue={editingListing?.category ?? "OTHER"}
+                >
+                  {categories.map((category) => (
+                    <option key={category}>{t(readable(category))}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                {t("Condition")}
+                <select
+                  name="condition"
+                  defaultValue={editingListing?.condition ?? "GOOD"}
+                >
+                  {conditions.map((condition) => (
+                    <option key={condition}>{t(readable(condition))}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="listing-form-actions form-wide">
+                <button className="button button-primary" type="submit">
+                  {editingListing ? t("Save changes") : t("Publish listing")}
+                </button>
+                <button
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => {
+                    setEditingListing(null);
+                    setView("marketplace");
+                  }}
+                >
+                  {t("Cancel")}
+                </button>
+              </div>
+            </form>
+            {listingActionError && (
+              <p className="notice notice-error" role="alert">
+                {listingActionError}
+              </p>
+            )}
+          </section>
+        )}
+
+        {user && activeView === "messages" && (
+          <section
+            aria-label="Messages"
+            className="messages-panel surface-card"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">{t("Inbox")}</p>
+                <h1>{t("Messages")}</h1>
+              </div>
+            </div>
+            <div className="message-layout">
+              <div className="conversation-list">
+                {conversations.length === 0 ? (
+                  <div className="empty-state compact">
+                    <h3>{t("No conversations yet")}</h3>
+                    <p>{t("Start by messaging a seller from a listing.")}</p>
+                  </div>
+                ) : (
+                  conversations.map((conversation) => (
+                    <button
+                      className={
+                        selectedConversation?.id === conversation.id
+                          ? "conversation-item is-active"
+                          : "conversation-item"
+                      }
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => void loadMessages(conversation)}
+                    >
+                      <strong>{conversation.listing.title}</strong>
+                      <span>
+                        {conversation.buyerId === user.id
+                          ? conversation.seller.name
+                          : conversation.buyer.name}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="message-thread">
+                {selectedConversation ? (
+                  <>
+                    <div className="thread-header">
+                      <div>
+                        <h2>{selectedConversation.listing.title}</h2>
+                        <p>
+                          {selectedConversation.buyerId === user.id
+                            ? selectedConversation.seller.name
+                            : selectedConversation.buyer.name}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="message-history">
+                      {messages.map((message) => (
+                        <p
+                          className={
+                            message.sender.id === user.id
+                              ? "message-bubble mine"
+                              : "message-bubble"
+                          }
+                          key={message.id}
+                        >
+                          <strong>{message.sender.name}</strong>
+                          {message.content}
+                        </p>
+                      ))}
+                    </div>
+                    <form onSubmit={sendMessage}>
+                      <div className="message-compose">
+                        <textarea
+                          aria-label={t("Message")}
+                          name="content"
+                          required
+                          placeholder={t("Write a message…")}
+                        />
+                        <button className="button button-primary" type="submit">
+                          {t("Send")}
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <h3>{t("Select a conversation")}</h3>
+                    <p>{t("Your messages will appear here.")}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            {messageError && (
+              <p className="notice notice-error" role="alert">
+                {messageError}
+              </p>
+            )}
+          </section>
+        )}
+
+        {user && activeView === "reservations" && (
+          <section aria-label="Reservations" className="reservations-panel">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">{t("Your activity")}</p>
+                <h1>{t("Reservations")}</h1>
+                <p>{t("Keep track of items you are buying or selling.")}</p>
+              </div>
+            </div>
+            {reservations.length === 0 ? (
+              <div className="empty-state surface-card">
+                <h3>{t("No reservations yet")}</h3>
+                <p>{t("When you request or receive a reservation, it will show up here.")}</p>
+                <button
+                  className="button button-primary"
+                  onClick={() => setView("marketplace")}
+                >
+                  {t("Browse marketplace")}
+                </button>
+              </div>
+            ) : (
+              <div className="reservation-grid">
+                {reservations.map((reservation) => (
+                  <article
+                    className="reservation-card surface-card"
+                    key={reservation.id}
+                  >
+                    <div>
+                      <span
+                        className={`status-badge status-${reservation.status.toLowerCase()}`}
+                      >
+                        {t(readable(reservation.status))}
+                      </span>
+                      <h2>{reservation.listing.title}</h2>
+                      <p>
+                        {reservation.listing.location} ·{" "}
+                        {reservation.buyer.id === user.id
+                          ? "Your request"
+                          : `Requested by ${reservation.buyer.name}`}
+                      </p>
+                    </div>
+                    {reservation.buyer.id === user.id &&
+                      reservation.status === "PENDING" && (
+                        <button
+                          className="button button-secondary"
+                          onClick={() =>
+                            void reservationAction(
+                              `/api/reservations/${reservation.id}/cancel`,
+                            )
+                          }
+                        >
+                          {t("Cancel request")}
+                        </button>
+                      )}
+                    {reservation.listing.seller.id === user.id &&
+                      reservation.status === "PENDING" && (
+                        <div className="card-actions">
+                          <button
+                            className="button button-primary"
+                            onClick={() =>
+                              void reservationAction(
+                                `/api/reservations/${reservation.id}/accept`,
+                              )
+                            }
+                          >
+                            {t("Accept")}
+                          </button>
+                          <button
+                            className="button button-secondary"
+                            onClick={() =>
+                              void reservationAction(
+                                `/api/reservations/${reservation.id}/decline`,
+                              )
+                            }
+                          >
+                            {t("Decline")}
+                          </button>
+                        </div>
+                      )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {user?.role === "ADMIN" && activeView === "admin" && (
+          <section
+            aria-label="Admin moderation"
+            className="admin-panel surface-card"
+          >
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">{t("Administration")}</p>
+                <h1>{t("Moderation queue")}</h1>
+                <p>{t("Review reports and take proportionate action.")}</p>
+              </div>
+              <span className="admin-label">{t("Administrator")}</span>
+            </div>
+            {reports.length === 0 ? (
+              <div className="empty-state">
+                <h3>{t("No reports to review")}</h3>
+                <p>{t("The moderation queue is currently clear.")}</p>
+              </div>
+            ) : (
+              <div className="report-list">
+                {reports.map((report) => (
+                  <article className="report-card" key={report.id}>
+                    <div className="report-main">
+                      <div className="report-meta">
+                        <span
+                          className={`status-badge status-${report.status.toLowerCase()}`}
+                        >
+                          {t(readable(report.status))}
+                        </span>
+                        <span>{formatDate(report.createdAt)}</span>
+                      </div>
+                      <h2>{report.listing.title}</h2>
+                      <p className="report-reason">“{report.reason}”</p>
+                      <p className="metadata">
+                        {language === "zh" ? "举报人：" : "Reported by "}{report.reporter.name} ·{" "}
+                        {report.reporter.email}
+                      </p>
+                    </div>
+                    {report.status === "PENDING" && (
+                      <div className="report-actions">
+                        <button
+                          disabled={isModerating}
+                          className="button button-secondary"
+                          type="button"
+                          onClick={() =>
+                            void adminAction(
+                              `/api/admin/reports/${report.id}/dismiss`,
+                            )
+                          }
+                        >
+                          {isModerating ? t("Working…") : t("Dismiss")}
+                        </button>
+                        <button
+                          disabled={isModerating}
+                          className="button button-danger"
+                          type="button"
+                          onClick={() =>
+                            void adminAction(
+                              `/api/admin/reports/${report.id}/remove-listing`,
+                              true,
+                            )
+                          }
+                        >
+                          {t("Remove listing")}
+                        </button>
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+        {reportingListing && (
+          <section
+            aria-label="Report listing"
+            className="report-form surface-card"
+          >
+            <div>
+              <p className="eyebrow">{t("Report listing")}</p>
+              <h2>{reportingListing.title}</h2>
+              <p>
+                {t("Tell us what is wrong with this listing. Your report will be reviewed by an administrator.")}
+              </p>
+            </div>
+            <form onSubmit={submitReport}>
+              <label>
+                {t("Reason")}
+                <textarea name="reason" required />
+              </label>
+              <div className="listing-form-actions">
+                <button
+                  disabled={isSubmittingReport}
+                  className="button button-primary"
+                  type="submit"
+                >
+                  {isSubmittingReport ? t("Submitting…") : t("Submit report")}
+                </button>
+                <button
+                  disabled={isSubmittingReport}
+                  className="button button-secondary"
+                  type="button"
+                  onClick={() => setReportingListing(null)}
+                >
+                  {t("Cancel")}
+                </button>
+              </div>
+            </form>
+          </section>
+        )}
+        {reportFeedback && (
+          <p className="notice notice-success" role="status">
+            {reportFeedback}
+          </p>
+        )}
+      </main>
+    </>
   );
 }
