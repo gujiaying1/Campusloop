@@ -6,6 +6,10 @@ CampusLoop is a bilingual (English / Simplified Chinese) full-stack marketplace 
 
 The project focuses on the parts of a marketplace that require more than displaying listings: authenticated accounts, ownership checks, saved items, buyer-seller communication, reservations, reporting, and role-based moderation.
 
+**Stack:** React · TypeScript · Node.js · Express · PostgreSQL · Prisma
+
+![CampusLoop marketplace discovery](docs/screenshots/campusloop-marketplace.png)
+
 ## Core Features
 
 - Account registration, login, session restoration, and logout.
@@ -122,15 +126,29 @@ Express + TypeScript backend
 
 The listings tests assume `npm run db:seed` has populated the local PostgreSQL database with the documented demo listings.
 
-## Screenshots
+## Product Screenshots
 
-Screenshots are not committed yet. Before sharing the repository, capture these real application states and add them under `docs/screenshots/` only after the image files exist:
+### Marketplace Discovery
 
-1. `marketplace-search.png` — signed out or signed in; show several listings and an applied search/filter.
-2. `listing-create-edit.png` — signed in as the listing owner; show the create or edit form with non-sensitive sample data.
-3. `messaging.png` — signed in as a buyer or seller; show a conversation with harmless sample messages.
-4. `reservation.png` — show a pending or accepted reservation and its listing status.
-5. `admin-moderation.png` — signed in as an administrator; show a pending report in the moderation panel. Do not include real personal information.
+Search, filtering, and sorting are handled through the Express API rather than client-only filtering.
+
+### Bilingual Experience
+
+![CampusLoop Simplified Chinese interface](docs/screenshots/campusloop-bilingual.png)
+
+The main user interface supports English and Simplified Chinese through a maintainable localisation dictionary.
+
+### Messaging
+
+![CampusLoop messaging workflow](docs/screenshots/campusloop-messaging.png)
+
+Conversations are persisted in PostgreSQL and the API limits access to the buyer and seller who participate in them.
+
+### Reporting & Administration
+
+![CampusLoop admin moderation queue](docs/screenshots/campusloop-admin.png)
+
+Admin-only moderation routes are protected through backend role checks.
 
 ## Current Status
 
